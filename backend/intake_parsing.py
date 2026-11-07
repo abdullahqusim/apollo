@@ -209,7 +209,7 @@ def caller_name(transcript: List[dict]) -> Optional[str]:
 
 
 def patient_words(transcript: List[dict]) -> str:
-    return " ".join(line.get("text", "") for line in transcript if line.get("speaker") == "patient")
+    return "\n".join(line.get("text", "") for line in transcript if line.get("speaker") == "patient")
 
 
 def transcript_text(transcript: List[dict]) -> str:

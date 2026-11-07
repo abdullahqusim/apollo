@@ -238,7 +238,7 @@ Tabs:
    patient phone to that patient. A released chair shows who it was offered to, their replies and time left. Selecting
    a free gap suggests waiting patients who fit it.
 2. **Flags** (human-in-the-loop queue): emergencies, too severe, too little information, got worse, asked for a person,
-   identity unconfirmed, no slot for an urgent case, offers turned down. Too severe and too little information are accepted or
+   identity unconfirmed, no slot for an urgent case, no reply to an urgent offer, offers turned down. Too severe and too little information are accepted or
    denied. The rest are marked done. Unfilled chairs stay in Schedule. Any row opens the patient record.
 3. **Calls**: every call, newest first. A row opens the patient record. Callers with no record show the transcript.
 4. **Waiting list**: stages enquiry -> intake done -> awaiting tutor -> accepted -> scheduled -> in treatment ->
@@ -263,12 +263,7 @@ Choosing anyone else needs a reason (patient request, continuity, clinician requ
 
 ## 12. Simulation ("replay a week")
 
-Seeded synthetic week: random cancellations, DNAs, new cases. Live metrics:
-- chair utilisation
-- average wait by urgency class
-- urgent window breaches
-- **reschedules per patient** (churn; target: none moved more than once)
-- triage agreement with clinician (from synthetic assessments)
+Not built. The first version showed fixed numbers, so it was removed rather than presented as results.
 
 ## 13. Guardrails summary
 
@@ -286,7 +281,6 @@ Seeded synthetic week: random cancellations, DNAs, new cases. Live metrics:
 3. Clinicians screen: show load and logbook gaps behind a match.
 4. Judges scan QR, join standby. Cancel an appointment on stage. Offers land on judges' phones; first to accept
    wins; board refills.
-5. Run the week simulation: show the metrics.
 
 ## 15. Build split
 
@@ -294,7 +288,7 @@ Seeded synthetic week: random cancellations, DNAs, new cases. Live metrics:
 - **Backend + engine + console + patient pages (Alqavi):** sections 3-8, 10-12.
 
 MVP cut if short on time: triage + Needs attention + Today + cascade + patient pages. Drop the nightly CP-SAT batch
-(greedy only), the Clinicians expand view, and the simulation last.
+(greedy only) and the Clinicians expand view last.
 
 ## 16. Stack
 

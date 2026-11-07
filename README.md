@@ -16,7 +16,7 @@ clinician in a slot that fits the patient, and texts them to confirm. Cancelled 
    to matching.
 3. **Matching.** Each procedure has a length, so the engine looks for a gap in a clinician's session that is long
    enough and fits the patient's availability. It holds the time and texts the patient. YES books it. NO offers the
-   next best slot, up to 3 times, then the patient is flagged for a call. No reply releases the hold.
+   next best slot, up to 3 times, then the patient is flagged for a call. No reply releases the hold, and an urgent patient is flagged for a call.
 4. **Standby.** A cancellation releases the chair to patients who opted in to short notice. If all 3 decline, Schedule
    flags the chair and suggests patients to text.
 

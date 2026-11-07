@@ -225,6 +225,7 @@ class NeedsAttentionItem(BaseModel):
         "low_confidence",
         "too_severe",
         "got_worse",
+        "no_reply",
         "other",
     ]
     summary: str

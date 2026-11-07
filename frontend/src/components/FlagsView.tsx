@@ -1,7 +1,7 @@
 import { FLAG_TYPES, sentence } from "../format";
 import type { FlagItem } from "../types";
 
-const RANK: Record<string, number> = { red_flag: 0, got_worse: 1, too_severe: 1 };
+const RANK: Record<string, number> = { red_flag: 0, got_worse: 1, too_severe: 1, no_reply: 1 };
 const DECISIONS = ["too_severe", "symptoms_unclear", "low_confidence", "borderline_complexity"];
 const WAITING = ["awaiting_tutor", "intake_done"];
 

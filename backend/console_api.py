@@ -691,40 +691,6 @@ def get_activity_log(limit: int = 50):
         return {"events": [e.model_dump() for e in evts[:limit]]}
 
 
-# 11. Simulation ("Replay a Week")
-@router.post("/simulate_week")
-def simulate_week():
-    """Runs a simulated synthetic week with realistic cancellations, DNAs, refills and computes live metrics."""
-    with STATE._lock:
-        total_slots = len(STATE.slots)
-        booked_slots = len([b for b in STATE.bookings.values() if b.state in ("confirmed", "locked", "attended")])
-
-        # Synthetically simulate a few events for demonstration
-        # 1. Elena Rostova fills a cancelled slot
-        # 2. Compute live metrics
-        metrics = {
-            "chair_utilisation": f"{round(min(94.2, (booked_slots / max(1, total_slots) * 100) + 12))}%",
-            "average_wait_urgent": "18 hours",
-            "average_wait_soon": "4.2 days",
-            "average_wait_routine": "11 days",
-            "urgent_window_breaches": 0,
-            "reschedules_per_patient": 0.08,  # Target: max 1
-            "triage_agreement_rate": "92.4%",  # Agreement with synthetic clinical assessments
-            "cancellations_recovered_rate": "87.5%",
-        }
-
-        STATE._log_event_locked(
-            actor="System",
-            evt_type="simulation_run",
-            entity="system",
-            payload=metrics,
-            reason="Replayed a synthetic week (10 sessions)."
-        )
-
-    STATE.save_snapshot()
-    return {"ok": True, "metrics": metrics}
-
-
 # 12. Reset Demo
 @router.post("/reset_demo")
 def reset_demo():

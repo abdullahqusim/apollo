@@ -588,6 +588,10 @@ def expire_offers() -> None:
                         patient_id=patient.id, msg_type="changed", title="Offer ended",
                         body="We did not hear back, so we released that appointment. You keep your place on the waiting list.",
                     )
+                    case = STATE.cases.get(offer.case_id)
+                    if case and case.urgency == "urgent":
+                        _flag(patient, case, "no_reply", f"{patient.name} did not reply to an urgent appointment offer.",
+                              "Call the patient and arrange a slot.")
             STATE._log_event_locked(
                 actor="System", evt_type="offer_expired", entity="offer", payload={"offer_id": offer.id},
                 reason=f"{patient.name if patient else 'Patient'} did not reply in time.",

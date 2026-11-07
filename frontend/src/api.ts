@@ -44,7 +44,6 @@ export const api = {
   closeFlag: (item_id: string, action: "resolve" | "dismiss", notes: string) =>
     post("/api/console/resolve_attention", { item_id, action, notes }),
   cancelBooking: (booking_id: string) => post("/api/console/cancel_booking", { booking_id }),
-  replayWeek: () => post<{ metrics: Record<string, string | number> }>("/api/console/simulate_week"),
   resetDemo: () => post("/api/console/reset_demo"),
   sendCall: (payload: unknown) => post<IntakeResult>("/webhooks/call-ended", payload),
 

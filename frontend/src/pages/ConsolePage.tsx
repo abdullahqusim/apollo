@@ -9,7 +9,6 @@ import { ConfirmDialog } from "../components/Dialog";
 import { FlagsView, needsDecision } from "../components/FlagsView";
 import { PatientRecord } from "../components/PatientRecord";
 import { PhoneSimulator } from "../components/PhoneSimulator";
-import { ReplayDialog } from "../components/ReplayDialog";
 import { ScheduleView } from "../components/ScheduleView";
 import { SignupDialog } from "../components/SignupDialog";
 import { WaitingListView } from "../components/WaitingListView";
@@ -19,7 +18,7 @@ import type {
 } from "../types";
 
 type View = "schedule" | "flags" | "waiting" | "calls" | "clinicians" | "audit";
-type Modal = "call" | "signup" | "replay" | "reset" | null;
+type Modal = "call" | "signup" | "reset" | null;
 
 interface ConsoleData {
   day: TodayData;
@@ -178,7 +177,6 @@ export function ConsolePage() {
               <button role="menuitem" onClick={() => chooseTool(() => setModal("signup"))}>Online sign-up QR code</button>
               <hr />
               <button role="menuitem" onClick={() => chooseTool(() => setView("audit"))}>Audit log</button>
-              <button role="menuitem" onClick={() => chooseTool(() => setModal("replay"))}>Replay a week</button>
               <button role="menuitem" onClick={() => chooseTool(() => setModal("reset"))}>Reset demo data</button>
             </div>
           )}
@@ -252,7 +250,6 @@ export function ConsolePage() {
       {assignCase && <AssignDialog caseId={assignCase} onClose={closeAssign} onAssigned={refresh} />}
       {modal === "call" && <CallDialog onClose={closeModal} onDone={callFinished} />}
       {modal === "signup" && <SignupDialog onClose={closeModal} />}
-      {modal === "replay" && <ReplayDialog onClose={closeModal} onDone={refresh} />}
       {modal === "reset" && (
         <ConfirmDialog
           title="Reset demo data"

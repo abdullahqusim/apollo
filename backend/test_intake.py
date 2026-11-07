@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 os.environ.pop("ANTHROPIC_API_KEY", None)
 
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 import pipeline
 import state
@@ -249,6 +250,57 @@ class Emergencies(IntakeTest):
         self.assertEqual(reasons, ["red_flag"])
 
 
+class RedFlagWording(unittest.TestCase):
+    def test_everyday_ways_of_saying_an_emergency_are_caught(self):
+        for said in (
+            "My neck is swollen and it's spreading", "my eye is swollen shut from the tooth",
+            "my tongue is swelling up", "my throat is swollen", "I can barely breathe", "I can hardly swallow",
+            "I'm having difficulty in swallowing", "I have trouble with breathing",
+            "the bleeding hasn't stopped for hours", "the bleeding isn't stopping",
+        ):
+            self.assertTrue(has_red_flag(said), said)
+
+    def test_a_symptom_clearly_in_the_past_is_not_an_emergency(self):
+        for said in (
+            "I had chest pain last year but that's sorted, I'm calling about a filling",
+            "I had a high temperature last week, gone now",
+            "neck swelling from a cyst years ago, I want a scale and polish",
+            "I had chest pain in 2019",
+            "I passed out two years ago at the gym",
+        ):
+            self.assertFalse(has_red_flag(said), said)
+
+    def test_a_symptom_that_is_still_going_stays_an_emergency(self):
+        for said in (
+            "I've had swelling in my neck since last week", "my neck swelling started last week",
+            "I had chest pain last week and I still have chest pain", "I still have chest pain from last year",
+            "chest pain last year and it's back again now",
+        ):
+            self.assertTrue(has_red_flag(said), said)
+
+
+class ProcedureNames(unittest.TestCase):
+    def test_the_model_can_only_name_procedures_clinicians_are_listed_for(self):
+        for invented in ("Filling", "Root canal treatment", "Denture repair"):
+            with self.assertRaises(ValidationError, msg=invented):
+                fake_model(likely_procedures=[invented])
+
+    def test_the_schema_sent_to_the_model_lists_the_procedures(self):
+        items = Assessment.model_json_schema()["properties"]["likely_procedures"]["items"]
+        self.assertIn("Composite restoration", items["enum"])
+        self.assertIn("Molar root canal", items["enum"])
+
+
+class RedFlagAcrossTurns(IntakeTest):
+    def test_a_past_date_in_the_next_turn_does_not_hide_an_emergency(self):
+        result = self.call(
+            caller("My name is Rory Sinclair. I have chest pain"),
+            agent("Have you had any injuries?"),
+            caller("last year I broke my arm"),
+        )
+        self.assertEqual(result["outcome"], "emergency")
+
+
 class AutoMatching(IntakeTest):
     def assessed_call(self, *args, **fields):
         with patch.object(pipeline, "get_anthropic_client", return_value=fake_model(**fields)):
@@ -306,6 +358,22 @@ class AutoMatching(IntakeTest):
     def test_severe_words_without_a_model_are_flagged(self):
         result = self.call(caller("My name is Ewan Reid. I think I have an abscess under my tooth."))
         self.assertEqual(self.flags(result["case_id"]), ["too_severe"])
+
+    def expire_offer_for(self, patient_id):
+        offer = pipeline._active_offer(patient_id)
+        offer.expires_at = "2020-01-01T00:00:00+00:00"
+        pipeline.expire_offers()
+
+    def test_urgent_patient_who_never_replies_reaches_a_person(self):
+        result = self.assessed_call(urgency="urgent", complexity=3)
+        self.expire_offer_for(result["patient_id"])
+        self.assertEqual(self.flags(result["case_id"]), ["no_reply"])
+
+    def test_routine_patient_who_never_replies_just_keeps_their_place(self):
+        result = self.assessed_call(urgency="routine", complexity=2)
+        self.expire_offer_for(result["patient_id"])
+        self.assertEqual(self.flags(result["case_id"]), [])
+        self.assertEqual(STATE.patients[result["patient_id"]].status, "waitlist")
 
     def test_voice_tool_flags_too_severe(self):
         case = client.post("/api/tools/create_intake", json={"name": "Ada Fox", "phone": "07700 900505"}).json()
