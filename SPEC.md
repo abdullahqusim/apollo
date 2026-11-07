@@ -1,4 +1,4 @@
-# Dental clinic matching system: spec
+# Apollo: spec
 
 Working spec for GUH 2026. Everything here is a prototype on synthetic data.
 
@@ -37,7 +37,9 @@ Health data is special category data under GDPR: role-based views are our data-m
   required_tier, status, tutor_review{decision, by, at}, confirmed_at_assessment{agree|edit|reject, notes}
 - **Clinician**: id, name, tier, year (students), supervisor_id, competencies[], logbook_targets{procedure: n},
   logbook_done{procedure: n}, sessions[], status (active, leave, exam_week, off_clinic)
-- **Slot**: id, clinician_id, bay, date, session (AM/PM), start, end
+- **ClinicSession**: id, clinician_id, bay, date, session (AM/PM), start, end. A clinician's working block.
+- **Slot**: id, clinician_id, bay, date, session, start, end, booking_id. One appointment cut from a session. Free time
+  is whatever a session has left, and is never stored.
 - **Booking**: id, slot_id, case_id, state, held_until, offers_made, reason, created_by (`engine` | staff name)
 - **Offer**: id, slot_id, patient_id, mode (`single` | `parallel` | `choice`), sent_at, expires_at, response
 - **Event** (audit log): id, at, actor (`Automated line` | staff name), type, entity, payload, reason
@@ -162,9 +164,8 @@ Phone-only patients: the agent offers at most 2 specific times aloud ("Tuesday a
 
 ## 8. Messaging layer
 
-One function: `send(patient, message)`. Adapters:
-- **demo** (default): writes to the in-app inbox shown at `/p/<token>`, pushed live
-- **twilio** (optional, only if time): real SMS
+One function: `send(patient, message)`. There is no real SMS: the **demo** adapter writes to the in-app inbox shown
+at `/p/<token>`, which updates live by polling (section 16).
 
 Message types: `joined`, `availability_check`, `offer_single`, `offer_choice`, `offer_parallel`, `confirmed`,
 `already_filled`, `reminder`, `cancelled`, `changed`.
@@ -199,6 +200,9 @@ End-of-call webhook `POST /webhooks/call-ended`:
 }
 ```
 
+Add `caller_phone` so we can text the patient. Optional: `caller_name`, `availability_text`, `short_notice_ok`,
+`wants_earlier`. Anything not sent is read from the transcript. Repeat `call_id`s are ignored.
+
 Outbound (if supported): `POST /calls/outbound {patient_id, purpose: "offer", slot_ids[]}` -> agent offers
 <=2 times, calls `book_slot` or declines.
 
@@ -206,36 +210,35 @@ Voice agent rules: never states a diagnosis; red flags -> emergency script; "spe
 
 ## 10. Receptionist console
 
-Look: enterprise hospital software. Left nav, site/date selector, dense tables, muted status pills, single blue
-accent. No sparkles, gradients, chat bubbles, or the word "AI". The agent is "Automated line". No NHS/MFT logos.
+Look: desktop clinical software. Title bar, flat tabs, grey chrome, ruled data grids, status bar, one blue. No
+cards, pills, emoji, gradients on content, chat bubbles, or the word "AI". The agent is "Automated line". No NHS/MFT
+logos.
 
-Screens:
-1. **Today**: bays x AM/PM grid. Slot: student, patient, treatment, status, tier colour; refilling slots show live
-   cascade status. Top strip: chairs filled today, open exceptions, waitlist size, cancellations recovered this week.
-2. **Overnight summary** (first thing in the morning): calls, triaged, awaiting review, urgent at top.
-3. **Needs attention** (human-in-the-loop queue): red flags, asked for a person, identity unconfirmed, symptoms
-   unclear, borderline complexity (tutor), no backfill candidate, cascade exhausted. Each item: two-line summary,
-   suggested action, approve / override.
-4. **Cascade panel**: held slot, student need, ranked candidates with reasons, offer status, reply timer.
-5. **Waitlist**: stages enquiry -> intake done -> awaiting tutor -> accepted -> scheduled -> in treatment ->
-   discharged. Sorted urgency then days waiting. Columns: urgency, complexity, tier, flags, availability freshness.
-6. **Clinicians**: row per clinician: tier, supervisor, competencies, load last 7 / next 7, free in next 48h,
-   status. Expand: 14-day AM/PM strip, upcoming appointments, case mix, outstanding logbook needs.
-   Top: clinicians available today, average load next 7 days, students behind on logbook targets.
-7. **Patient drawer**: details, plain summary, availability grid with source and last confirmed, call history with
-   transcript summaries, bookings, flags. Clinical panel only for clinical roles.
-8. **Activity log**: every action with actor and reason.
+Tabs:
+1. **Schedule**: day calendar, bays x 15-minute rows, 09:00 to 17:00 with lunch. Appointment length comes from the
+   procedure, so days have uneven blocks and gaps. Selecting an appointment opens its details below and switches the
+   patient phone to that patient. A released chair shows who it was offered to, their replies and time left. Selecting
+   a free gap suggests waiting patients who fit it.
+2. **Worklist** (human-in-the-loop queue): red flags, asked for a person, identity unconfirmed, symptoms unclear,
+   borderline complexity (tutor), no standby match, offers exhausted. Each item: summary, next step, approve or
+   dismiss. Overnight calls sit underneath, newest first, with the transcript on row click.
+3. **Waiting list**: stages enquiry -> intake done -> awaiting tutor -> accepted -> scheduled -> in treatment ->
+   discharged. Sorted urgency then days waiting. Columns: urgency, complexity, grade, flags, availability source.
+4. **Clinicians**: row per clinician: grade, supervisor, load, free in next 48h, logbook outstanding, status. Click a
+   row for logbook detail and the 14-day schedule. Above the table: available today, average load, students behind.
 
-Manual assignment: "Assign" opens a shortlist of eligible clinicians, engine-ranked, load shown, tie-break stated.
-Overrides need a reason chip (patient request, continuity, clinician request, other).
+Patient record: details, plain summary, availability, bookings, calls. Clinical panel only for clinical roles.
+Audit log (Tools menu): every action with actor and reason.
 
-## 11. Patient demo pages
+Manual assignment: "Assign" opens eligible clinicians, ranked, with load shown and the first marked as recommended.
+Choosing anyone else needs a reason (patient request, continuity, clinician request, other).
 
-- `/join` (QR on a slide): first name, preset scenario (no free-text symptoms), short notice OK, AM/PM preference.
-  Creates a standby patient.
-- `/p/<token>`: plain message thread, live. Offers with tap-to-pick and countdown, confirm/change/cancel,
-  availability grid.
-- Generic styling, not a clone of any messaging app.
+## 11. Patient pages
+
+- `/join`: the online version of the call. Same questions (name, mobile, problem in their own words, availability,
+  short notice, earlier appointments), same intake, same outcomes.
+- `/p/<token>`: the patient's text thread, live. Yes and No answer an offer. Cancel appointment releases the chair.
+- `/phone` and the console's Patient phone panel show the same thread in a phone frame for any patient.
 - Parallel offers to several judges demonstrate first-confirm-wins live.
 - Console has a **Reset demo** button. Laptop phone-frame fallback if venue wifi fails.
 
@@ -274,8 +277,27 @@ Seeded synthetic week: random cancellations, DNAs, new cases. Live metrics:
 MVP cut if short on time: triage + Needs attention + Today + cascade + patient pages. Drop the nightly CP-SAT batch
 (greedy only), the Clinicians expand view, and the simulation last.
 
-## 16. Open questions
+## 16. Stack
 
-- Stack. Proposed: FastAPI (Python, OR-Tools) + SQLite/Postgres backend, Next.js console, SSE for live updates.
+Everything runs locally on one laptop as a single process.
+
+- **Backend:** FastAPI with one uvicorn worker. OR-Tools for the nightly batch.
+- **State:** no database. In-memory Pydantic objects behind one lock, with no `await` while it is held. Write a JSON
+  snapshot after each change (temp file, then rename) and load it on startup. Reset demo reloads the seed data.
+- **Frontend:** Vite + React + TypeScript with plain CSS. Built to static files, served by FastAPI.
+- **Live updates:** console and patient pages poll every 1-2s for events since the last one seen. No SSE: quick
+  tunnels do not support it.
+- **Triage:** Claude Haiku 5.5 (`claude-haiku-5-5`) at low effort with structured output. A red-flag keyword check
+  runs first. Refusals, API errors and invalid results go to Needs attention.
+- **Phone line:** Twilio number connected to the ElevenLabs agent. Twilio is voice only: patient messages stay in the
+  demo adapter (section 8).
+- **Public access:** Cloudflare quick tunnel (`cloudflared tunnel --url http://localhost:8000`) for ElevenLabs and
+  judges' phones. The URL changes on restart, so start it once and leave it running; if it restarts, update the URL in
+  ElevenLabs and regenerate the QR code.
+- **Access control:** password on console routes, shared secret on ElevenLabs tool endpoints, unguessable patient tokens.
+- **Demo day:** the laptop needs internet for voice, triage and the tunnel. Keep it awake and plugged in, with a phone
+  hotspot as backup. Test the full flow through the tunnel URL on mobile data beforehand.
+
+## 17. Open questions
+
 - Does the ElevenLabs setup support outbound calls?
-- Product name.
