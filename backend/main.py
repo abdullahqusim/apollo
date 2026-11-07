@@ -57,6 +57,8 @@ class CallEndedWebhook(BaseModel):
     caller_phone: Optional[str] = None
     caller_name: Optional[str] = None
     availability_text: Optional[str] = None
+    # Weekday -> {"am": bool, "pm": bool}, already worked out by the caller. Wins over availability_text.
+    availability: Optional[Dict[str, Dict[str, bool]]] = None
     short_notice_ok: Optional[bool] = None
     wants_earlier: Optional[bool] = None
     caller_dob: Optional[str] = None
@@ -106,7 +108,7 @@ async def call_ended_webhook(payload: CallEndedWebhook):
             phone=payload.caller_phone,
             problem=words,
             transcript=transcript_text(payload.transcript),
-            availability=parse_availability(availability),
+            availability=payload.availability or parse_availability(availability),
             short_notice_ok=bool(short_notice),
             wants_earlier=bool(earlier),
             date_of_birth=parse_dob(payload.caller_dob or "") or caller_dob(payload.transcript),
