@@ -22,6 +22,7 @@ EFFORT = "low"  # Haiku 5.5 defaults to medium, so this must stay explicit.
 Urgency = Literal["emergency", "urgent", "soon", "routine"]
 NextStep = Literal["book", "emergency", "review"]
 URGENCY_ORDER = ("emergency", "urgent", "soon", "routine")
+SENIOR_COMPLEXITY = 4  # Postgraduate or qualified dentist
 
 SYSTEM_PROMPT = """You triage intake calls for a university dental hospital.
 Your output is provisional and is reviewed by clinicians. It is never shown to the patient.
@@ -35,7 +36,8 @@ Urgency:
 Complexity decides who can treat the patient:
 1 = Year 3 student, 2 = Year 4, 3 = Year 5, 4 = postgraduate, 5 = qualified dentist.
 
-Confidence is "low" when the symptoms are unclear or the call gives too little to judge.
+Confidence is "low" only when the call gives too little to tell what the problem is. Use "medium" whenever you can make
+a reasonable estimate, because low confidence stops the case being matched until a person has checked it.
 
 summary_plain is for reception staff, so it must name symptoms only and contain no diagnosis.
 possible_issues, not_ruled_out and likely_procedures are for clinicians only.
@@ -83,6 +85,7 @@ class TriageResult:
     reason: str
     assessment: Optional[Assessment] = None
     disagreement: Optional[str] = None  # Set when the voice agent and triage rated the call differently
+    flag: str = "symptoms_unclear"  # Why a person must check it, when next_step is "review"
 
 
 def agent_urgency_from(value: Optional[str]) -> Optional[str]:
@@ -110,7 +113,16 @@ def heuristic_triage(patient_text: str, transcript: str) -> Assessment:
     text = (patient_text + " " + transcript).lower()
 
     # Urgency & Complexity heuristics
-    if any(k in text for k in ["severe", "unbearable", "trauma", "fracture", "bleed", "broken front tooth", "chipped"]):
+    patient_only = patient_text.lower()
+    if re.search(r"\b(abscess|pus|knocked out|swollen|swelling)\b", patient_only):
+        urgency = "urgent"
+        complexity = 4
+        confidence = "high"
+        summary = "Pain or swelling that needs senior review."
+        possible_issues = ["Dental abscess", "Avulsed tooth"]
+        not_ruled_out = ["Spreading infection"]
+        likely_procedures = ["Clinical assessment by tutor"]
+    elif any(k in text for k in ["severe", "unbearable", "trauma", "fracture", "bleed", "broken front tooth", "chipped"]):
         urgency: Urgency = "urgent"
         complexity = 3
         confidence = "high"
@@ -142,6 +154,14 @@ def heuristic_triage(patient_text: str, transcript: str) -> Assessment:
         possible_issues = ["Calculus build-up", "Mild gingivitis"]
         not_ruled_out = []
         likely_procedures = ["Scale & polish"]
+    elif re.search(r"\b(tooth|teeth|gums?|dentures?|crowns?|bridge|braces?|mouth|jaw|pain|hurts?|sore)\b", patient_only):
+        urgency = "routine"
+        complexity = 2
+        confidence = "medium"
+        summary = "Dental problem described by the patient, needs a short assessment."
+        possible_issues = ["Undifferentiated dental problem"]
+        not_ruled_out = []
+        likely_procedures = ["Clinical assessment by tutor"]
     else:
         urgency = "routine"
         complexity = 2
@@ -173,12 +193,18 @@ async def triage(
 
     result = await _assess(client, patient_text, transcript)
     assessment = result.assessment
-    if not agent_urgency or not assessment or result.next_step == "emergency" or agent_urgency == assessment.urgency:
+    if not assessment or result.next_step == "emergency":
         return result
 
-    result.disagreement = f"Automated line said {agent_urgency}, triage said {assessment.urgency}."
-    if URGENCY_ORDER.index(agent_urgency) < URGENCY_ORDER.index(assessment.urgency):
-        result.assessment = assessment.model_copy(update={"urgency": agent_urgency})
+    if agent_urgency and agent_urgency != assessment.urgency:
+        result.disagreement = f"Automated line said {agent_urgency}, triage said {assessment.urgency}."
+        if URGENCY_ORDER.index(agent_urgency) < URGENCY_ORDER.index(assessment.urgency):
+            assessment = result.assessment = assessment.model_copy(update={"urgency": agent_urgency})
+
+    if result.next_step == "book" and assessment.urgency == "urgent" and assessment.complexity >= SENIOR_COMPLEXITY:
+        result.next_step = "review"
+        result.flag = "too_severe"
+        result.reason = "Urgent and needs senior care"
     return result
 
 

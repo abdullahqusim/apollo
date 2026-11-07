@@ -49,12 +49,12 @@ export const refillOutcome = (refill: { status: string; declined: number; sent: 
   return `${refill.sent} offered, none took it`;
 };
 
-export const WORKLIST_TYPES: Record<string, string> = {
+export const FLAG_TYPES: Record<string, string> = {
   red_flag: "Emergency",
+  too_severe: "Too severe",
   borderline_complexity: "Tutor review",
-  symptoms_unclear: "Unclear symptoms",
-  low_confidence: "Unclear symptoms",
-  urgency_disagreement: "Urgency disagreement",
+  symptoms_unclear: "Too little information",
+  low_confidence: "Too little information",
   asked_for_person: "Asked for a person",
   identity_unconfirmed: "Identity unconfirmed",
   no_backfill_candidate: "No standby match",
@@ -86,7 +86,7 @@ export const EVENT_LABELS: Record<string, string> = {
   offers_sent: "Standby offers sent",
   offers_exhausted: "Standby offers ran out",
   parallel_offer_claimed: "Standby offer accepted",
-  needs_attention_resolved: "Worklist item closed",
+  needs_attention_resolved: "Flag closed",
   simulation_run: "Week replayed",
   match_offered: "Appointment offered",
   match_accepted: "Appointment accepted",
@@ -101,8 +101,8 @@ export const urgencyTone = (urgency?: string) =>
 export const OUTCOME_TEXT: Record<string, string> = {
   offered: "Triaged and matched. An appointment offer has been texted.",
   waiting: "Triaged. No slot fits yet, so the patient is on the waiting list.",
-  review: "Sent to the Worklist for a tutor to check.",
+  review: "Flagged for someone to check before it is matched.",
   emergency: "Emergency. The patient was told to go to A&E and nothing was booked.",
   updated: "Already on the list. Availability updated.",
-  incomplete: "The call had no name or phone number. Added to the Worklist.",
+  incomplete: "The call had no name or phone number. Added to Flags.",
 };

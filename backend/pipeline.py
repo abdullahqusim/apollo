@@ -28,6 +28,10 @@ WINDOW_DAYS = {"urgent": 2, "soon": 14, "routine": 21}
 MAX_PROPOSALS = 3
 URGENCY_ORDER = {"urgent": 0, "soon": 1, "routine": 2}
 MATCHABLE_PATIENTS = ("waitlist",)
+FLAG_ACTIONS = {
+    "symptoms_unclear": "Accept to match it as it stands, or deny and tell the patient.",
+    "too_severe": "Check a senior clinician can see them, then accept or deny.",
+}
 
 
 @dataclass
@@ -271,7 +275,7 @@ def offer_slot(case_id: str, slot_id: str) -> Offer:
     return offer
 
 
-# --- Worklist helper --------------------------------------------------------
+# --- Flag helper ------------------------------------------------------------
 
 def _flag(patient: Optional[Patient], case: Optional[Case], reason: str, summary: str, action: str) -> None:
     item = NeedsAttentionItem(
@@ -361,7 +365,7 @@ async def process_intake(data: IntakeData) -> Dict[str, Any]:
         STATE._log_event_locked(
             actor=actor, evt_type="intake_created", entity="case",
             payload={"patient_id": patient.id, "case_id": case.id},
-            reason=f"{patient.name}: {result.reason}.",
+            reason=f"{patient.name}: {result.reason}." + (f" {result.disagreement}" if result.disagreement else ""),
         )
 
         if result.next_step == "emergency":
@@ -374,22 +378,17 @@ async def process_intake(data: IntakeData) -> Dict[str, Any]:
                 patient_id=patient.id, msg_type="emergency", title="Get urgent care",
                 body="What you told us needs urgent care today. Please go to A&E now, or call NHS 111 or 999. We cannot book this at the student clinic.",
             )
-        elif result.next_step == "review" or case.confidence == "medium":
+        elif result.next_step == "review":
             outcome = "review"
             case.status = "awaiting_tutor"
-            reason = "borderline_complexity" if case.confidence == "medium" else "symptoms_unclear"
             summary = f"{case.summary_plain} {result.disagreement}" if result.disagreement else case.summary_plain
-            _flag(patient, case, reason, summary, "Tutor to approve the case so it can be matched.")
+            _flag(patient, case, result.flag, summary, FLAG_ACTIONS[result.flag])
             STATE.send_message_locked(
                 patient_id=patient.id, msg_type="received", title="Details received",
                 body=f"Thanks {patient.name.split()[0]}. A clinician needs to check your details first. We will text you when they have.",
             )
         else:
             case.status = "accepted"
-            if result.disagreement:
-                # Matching carries on at the more urgent level. Closing this item only confirms that level.
-                _flag(patient, case, "urgency_disagreement", f"{result.disagreement} Using {case.urgency}.",
-                      "Tutor to confirm the urgency.")
             STATE.send_message_locked(
                 patient_id=patient.id, msg_type="received", title="Details received",
                 body=f"Thanks {patient.name.split()[0]}, we have your details and availability.",
@@ -405,6 +404,18 @@ def case_approved(case: Case) -> None:
     patient = STATE.patients.get(case.patient_id)
     if patient and patient.status == "waitlist" and not _active_offer(patient.id) and not _active_booking(patient.id):
         match_case(case, patient)
+
+
+def case_denied(case: Case) -> None:
+    """Staff turned the case down, so it leaves the waiting list and the patient is told."""
+    case.status = "discharged"
+    patient = STATE.patients.get(case.patient_id)
+    if patient:
+        patient.status = "discharged"
+        STATE.send_message_locked(
+            patient_id=patient.id, msg_type="changed", title="We can't book this",
+            body="We can't offer you an appointment at the student clinic for this. Please see your dentist, or call NHS 111 if you need help soon.",
+        )
 
 
 # --- Replies ----------------------------------------------------------------

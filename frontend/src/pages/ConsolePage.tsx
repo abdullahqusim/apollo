@@ -3,27 +3,28 @@ import { api, type IntakeResult } from "../api";
 import { AssignDialog } from "../components/AssignDialog";
 import { AuditLogView } from "../components/AuditLogView";
 import { CallDialog } from "../components/CallDialog";
+import { CallsView } from "../components/CallsView";
 import { CliniciansView } from "../components/CliniciansView";
 import { ConfirmDialog } from "../components/Dialog";
+import { FlagsView, needsDecision } from "../components/FlagsView";
 import { PatientRecord } from "../components/PatientRecord";
 import { PhoneSimulator } from "../components/PhoneSimulator";
 import { ReplayDialog } from "../components/ReplayDialog";
 import { ScheduleView } from "../components/ScheduleView";
 import { SignupDialog } from "../components/SignupDialog";
 import { WaitingListView } from "../components/WaitingListView";
-import { WorklistView } from "../components/WorklistView";
 import { OUTCOME_TEXT } from "../format";
 import type {
-  AuditEvent, Call, ClinicianData, ReleasedSlot, Role, SlotItem, TodayData, WaitingCase, WorklistItem,
+  AuditEvent, Call, ClinicianData, FlagItem, ReleasedSlot, Role, SlotItem, TodayData, WaitingCase,
 } from "../types";
 
-type View = "schedule" | "worklist" | "waiting" | "clinicians" | "audit";
+type View = "schedule" | "flags" | "waiting" | "calls" | "clinicians" | "audit";
 type Modal = "call" | "signup" | "replay" | "reset" | null;
 
 interface ConsoleData {
   day: TodayData;
   released: ReleasedSlot[];
-  worklist: WorklistItem[];
+  flags: FlagItem[];
   calls: Call[];
   waiting: WaitingCase[];
   clinicians: ClinicianData;
@@ -44,6 +45,7 @@ export function ConsolePage() {
   const [patientId, setPatientId] = useState<string | null>(null);
   const [assignCase, setAssignCase] = useState<string | null>(null);
   const [cancelSlot, setCancelSlot] = useState<SlotItem | null>(null);
+  const [denyFlag, setDenyFlag] = useState<FlagItem | null>(null);
   const [modal, setModal] = useState<Modal>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [phoneOpen, setPhoneOpen] = useState(true);
@@ -55,14 +57,14 @@ export function ConsolePage() {
 
   const refresh = useCallback(async () => {
     try {
-      const [day, released, worklist, calls, waiting, clinicians, audit] = await Promise.all([
-        api.getDay(dateRef.current), api.getReleased(), api.getWorklist(), api.getCalls(),
+      const [day, released, flags, calls, waiting, clinicians, audit] = await Promise.all([
+        api.getDay(dateRef.current), api.getReleased(), api.getFlags(), api.getCalls(),
         api.getWaitingList(), api.getClinicians(), api.getAuditLog(),
       ]);
       setData({
         day,
         released: released.released,
-        worklist: worklist.items,
+        flags: flags.items,
         calls: calls.calls,
         waiting: waiting.cases,
         clinicians,
@@ -99,6 +101,7 @@ export function ConsolePage() {
 
   const closeModal = useCallback(() => { setModal(null); setActionError(null); }, []);
   const closeCancel = useCallback(() => { setCancelSlot(null); setActionError(null); }, []);
+  const closeDeny = useCallback(() => { setDenyFlag(null); setActionError(null); }, []);
   const closeAssign = useCallback(() => setAssignCase(null), []);
   const closeRecord = useCallback(() => setPatientId(null), []);
   const openPhone = useCallback((token: string) => { setPhoneToken(token); setPhoneOpen(true); }, []);
@@ -137,11 +140,12 @@ export function ConsolePage() {
   };
 
   const chooseTool = (action: () => void) => { setMenuOpen(false); action(); };
-  const openItems = data?.worklist.filter((item) => item.status === "open").length ?? 0;
+  const openFlags = data?.flags.filter((item) => item.status === "open").length ?? 0;
   const tabs: { id: View; label: string; count?: number }[] = [
     { id: "schedule", label: "Schedule" },
-    { id: "worklist", label: "Worklist", count: openItems },
+    { id: "flags", label: "Flags", count: openFlags },
     { id: "waiting", label: "Waiting list" },
+    { id: "calls", label: "Calls" },
     { id: "clinicians", label: "Clinicians" },
   ];
 
@@ -204,14 +208,13 @@ export function ConsolePage() {
               onClearSelection={() => setSelectedSlot(null)}
             />
           )}
-          {data && view === "worklist" && (
-            <WorklistView
-              items={data.worklist}
-              calls={data.calls}
+          {data && view === "flags" && (
+            <FlagsView
+              items={data.flags}
               onOpenPatient={setPatientId}
-              onOpenSlot={goToDate}
-              onClose={(id, action) => run(
-                () => api.closeWorklistItem(id, action, action === "resolve" ? "Approved" : "Dismissed"),
+              onDeny={setDenyFlag}
+              onAccept={(item) => run(
+                () => api.closeFlag(item.id, "resolve", needsDecision(item) ? "Accepted" : "Done"),
                 () => undefined,
               )}
             />
@@ -219,6 +222,7 @@ export function ConsolePage() {
           {data && view === "waiting" && (
             <WaitingListView cases={data.waiting} role={role} onOpenPatient={setPatientId} onAssign={setAssignCase} onChanged={refresh} />
           )}
+          {data && view === "calls" && <CallsView calls={data.calls} onOpenPatient={setPatientId} />}
           {data && view === "clinicians" && <CliniciansView data={data.clinicians} />}
           {data && view === "audit" && <AuditLogView events={data.audit} />}
         </main>
@@ -263,6 +267,18 @@ export function ConsolePage() {
             setNotice(null);
             closeModal();
           })}
+        />
+      )}
+      {denyFlag && (
+        <ConfirmDialog
+          title="Deny this request"
+          message={`Close ${denyFlag.patient?.name ?? "this patient"}'s request? They will get a text saying we can't book it.`}
+          confirmLabel="Deny request"
+          cancelLabel="Keep flag"
+          busy={busy}
+          error={actionError}
+          onClose={closeDeny}
+          onConfirm={() => run(() => api.closeFlag(denyFlag.id, "dismiss", "Denied"), closeDeny)}
         />
       )}
       {cancelSlot?.booking && (

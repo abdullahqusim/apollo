@@ -67,7 +67,11 @@ Two separate scores, never merged into one number.
 | 5 | Qualified dentist |
 (Thresholds per procedure live in a config table; this is the default.)
 
-**Confidence** (high / medium / low) on the triage. Low confidence = "symptoms unclear" -> Needs attention, no auto-match.
+**Confidence** (high / medium / low) on the triage. Low means too little to tell what the problem is.
+
+**Auto-match by default.** A person only checks a case that is low confidence (too little information) or urgent with
+complexity 4+ (too severe). Accepting matches it as normal. Denying closes it and texts the patient. Everything else,
+including medium confidence, is matched straight away and the patient answers YES or NO by text.
 
 **Clinical panel** (clinical view only):
 - complaint in patient's own words (quoted)
@@ -207,7 +211,7 @@ Add `caller_phone` so we can text the patient. Optional: `caller_name`, `caller_
 Repeat `call_id`s are ignored.
 
 Urgency: the agent and triage both rate the call, and the more urgent rating is used. A disagreement stays on the
-case and adds a Worklist item, but does not hold up matching. `emergency_redirected` always counts as an emergency,
+case and in the audit log, but does not hold up matching. `emergency_redirected` always counts as an emergency,
 even if triage disagrees, so a caller told to dial 999 is never booked.
 
 Outbound (if supported): `POST /calls/outbound {patient_id, purpose: "offer", slot_ids[]}` -> agent offers
@@ -226,15 +230,16 @@ Tabs:
    procedure, so days have uneven blocks and gaps. Selecting an appointment opens its details below and switches the
    patient phone to that patient. A released chair shows who it was offered to, their replies and time left. Selecting
    a free gap suggests waiting patients who fit it.
-2. **Worklist** (human-in-the-loop queue): red flags, asked for a person, identity unconfirmed, symptoms unclear,
-   borderline complexity (tutor), no standby match, offers exhausted. Each item: summary, next step, approve or
-   dismiss. Overnight calls sit underneath, newest first, with the transcript on row click.
-3. **Waiting list**: stages enquiry -> intake done -> awaiting tutor -> accepted -> scheduled -> in treatment ->
+2. **Flags** (human-in-the-loop queue): emergencies, too severe, too little information, asked for a person, identity
+   unconfirmed, no slot for an urgent case, offers turned down. Too severe and too little information are accepted or
+   denied. The rest are marked done. Unfilled chairs stay in Schedule. Any row opens the patient record.
+3. **Calls**: every call, newest first. A row opens the patient record. Callers with no record show the transcript.
+4. **Waiting list**: stages enquiry -> intake done -> awaiting tutor -> accepted -> scheduled -> in treatment ->
    discharged. Sorted urgency then days waiting. Columns: urgency, complexity, grade, flags, availability source.
-4. **Clinicians**: row per clinician: grade, supervisor, load, free in next 48h, logbook outstanding, status. Click a
+5. **Clinicians**: row per clinician: grade, supervisor, load, free in next 48h, logbook outstanding, status. Click a
    row for logbook detail and the 14-day schedule. Above the table: available today, average load, students behind.
 
-Patient record: details, plain summary, availability, bookings, calls. Clinical panel only for clinical roles.
+Patient record: details, plain summary, availability, bookings, calls with transcripts. Clinical panel only for clinical roles.
 Audit log (Tools menu): every action with actor and reason.
 
 Manual assignment: "Assign" opens eligible clinicians, ranked, with load shown and the first marked as recommended.

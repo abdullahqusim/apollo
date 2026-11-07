@@ -538,12 +538,12 @@ def generate_seed_data() -> Tuple[
         status="waitlist", case_status="accepted", created_days_ago=0
     )
 
-    # Borderline Tutor Review Case
+    # Urgent case that needs senior care, so a person checks it first
     p_tutor, c_tutor = add_patient_and_case(
         "pat-tutor", "Gemma Collins", "07700 900302", "tok-gemma",
         "Deep subgingival decay on lower second molar adjacent to inferior alveolar nerve on radiograph history",
         "I have a deep hole in my wisdom tooth area. My dentist told me it was tricky and close to the nerve.",
-        "soon", 3, "medium",
+        "urgent", 4, "high",
         ["Deep carious lesion", "Pulpal involvement"],
         ["Surgical extraction requirement"],
         ["Surgical extraction", "Composite restoration"],
@@ -554,9 +554,9 @@ def generate_seed_data() -> Tuple[
             id="att-001",
             patient_id=p_tutor.id,
             case_id=c_tutor.id,
-            reason="borderline_complexity",
-            summary="Deep decay near inferior alveolar nerve. Complexity is borderline between Year 5 and Postgraduate.",
-            suggested_action="Tutor to approve for Year 5 or refer to Dr. Clark.",
+            reason="too_severe",
+            summary="Deep decay near the nerve. Urgent and needs a postgraduate or dentist.",
+            suggested_action="Check a senior clinician can see them, then accept or deny.",
             created_at=(base_dt - timedelta(hours=4)).isoformat() + "Z",
         )
     )

@@ -180,15 +180,12 @@ class UrgencyDisagreement(IntakeTest):
         result = self.call(caller("My name is Isla Grant. I have severe pain."), agent_urgency="routine")
         self.assertEqual(STATE.cases[result["case_id"]].urgency, "urgent")
 
-    def test_disagreement_goes_to_the_worklist_without_blocking_matching(self):
+    def test_disagreement_is_kept_on_the_case_without_a_flag(self):
         result = self.routine_call(agent_urgency="urgent")
-        self.assertIn("urgency_disagreement", self.flags(result["case_id"]))
+        self.assertEqual(self.flags(result["case_id"]), [])
         self.assertEqual(STATE.cases[result["case_id"]].status, "accepted")
         self.assertIn(result["outcome"], ("offered", "waiting"))
-
-    def test_agreement_raises_nothing(self):
-        result = self.routine_call(agent_urgency="routine")
-        self.assertEqual(self.flags(result["case_id"]), [])
+        self.assertTrue(any("Automated line said urgent" in event.reason for event in STATE.events))
 
     def test_unknown_urgency_never_loses_the_call(self):
         result = self.routine_call(agent_urgency="very bad")
@@ -203,19 +200,13 @@ class UrgencyDisagreement(IntakeTest):
             result = self.routine_call(agent_urgency="urgent")
         self.assertEqual(STATE.cases[result["case_id"]].urgency, "urgent")
 
-    def test_closing_a_disagreement_during_review_needs_the_tutor(self):
-        with patch.object(pipeline, "get_anthropic_client", return_value=fake_model(confidence="low")):
-            result = self.routine_call(agent_urgency="urgent")
-        self.assertEqual(STATE.cases[result["case_id"]].status, "awaiting_tutor")
-        self.assertNotIn("urgency_disagreement", self.flags(result["case_id"]))
-
     def test_voice_tool_takes_the_safer_urgency(self):
         case = client.post("/api/tools/create_intake", json={"name": "Ada Fox", "phone": "07700 900504"}).json()
         response = client.post("/api/tools/submit_triage", json={
             "case_id": case["case_id"], "complaint_quote": "I lost a filling, cold drinks hurt", "agent_urgency": "urgent",
         }).json()
         self.assertEqual(response["urgency"], "urgent")
-        self.assertIn("urgency_disagreement", self.flags(case["case_id"]))
+        self.assertEqual(self.flags(case["case_id"]), [])
 
 
 class Emergencies(IntakeTest):
@@ -255,6 +246,129 @@ class Emergencies(IntakeTest):
         self.call(caller("I can't feel my arm."), outcome="emergency_redirected")
         reasons = [item.reason for item in STATE.needs_attention.values() if "Possible emergency" in item.summary]
         self.assertEqual(reasons, ["red_flag"])
+
+
+class AutoMatching(IntakeTest):
+    def assessed_call(self, *args, **fields):
+        with patch.object(pipeline, "get_anthropic_client", return_value=fake_model(**fields)):
+            return self.routine_call(*args)
+
+    def texts(self, patient_id):
+        return [m.type for m in STATE.messages.values() if m.patient_id == patient_id]
+
+    def test_ordinary_call_gets_an_appointment_text_without_a_person(self):
+        result = self.assessed_call(confidence="high")
+        self.assertEqual(result["outcome"], "offered")
+        self.assertEqual(self.flags(result["case_id"]), [])
+        self.assertIn("offer_single", self.texts(result["patient_id"]))
+
+    def test_medium_confidence_is_matched_automatically(self):
+        result = self.assessed_call(confidence="medium")
+        self.assertEqual(result["outcome"], "offered")
+        self.assertEqual(self.flags(result["case_id"]), [])
+
+    def test_too_little_information_is_flagged(self):
+        result = self.assessed_call(confidence="low")
+        self.assertEqual(result["outcome"], "review")
+        self.assertEqual(self.flags(result["case_id"]), ["symptoms_unclear"])
+        self.assertNotIn("offer_single", self.texts(result["patient_id"]))
+
+    def test_urgent_case_needing_senior_care_is_flagged_as_too_severe(self):
+        result = self.assessed_call(urgency="urgent", complexity=4)
+        self.assertEqual(result["outcome"], "review")
+        self.assertEqual(self.flags(result["case_id"]), ["too_severe"])
+        self.assertNotIn("offer_single", self.texts(result["patient_id"]))
+
+    def test_agent_raising_a_complex_case_to_urgent_flags_it(self):
+        with patch.object(pipeline, "get_anthropic_client", return_value=fake_model(complexity=4)):
+            result = self.routine_call(agent_urgency="urgent")
+        self.assertEqual(self.flags(result["case_id"]), ["too_severe"])
+
+    def test_complex_but_not_urgent_cases_are_still_matched(self):
+        result = self.assessed_call(urgency="routine", complexity=5)
+        self.assertNotEqual(result["outcome"], "review")
+        self.assertEqual(self.flags(result["case_id"]), [])
+
+    def test_urgent_case_a_student_can_treat_is_matched(self):
+        result = self.assessed_call(urgency="urgent", complexity=3)
+        self.assertNotEqual(result["outcome"], "review")
+
+    def test_everyday_dental_problems_match_without_a_model(self):
+        for number, problem in enumerate(("My denture is loose.", "My gum is sore.", "I have a bad toothache in a crown.")):
+            result = self.call(caller(f"My name is Test Person{'ab'[number % 2] * (number + 1)}. {problem}"))
+            self.assertNotEqual(result["outcome"], "review", problem)
+
+    def test_vague_call_without_a_model_is_flagged(self):
+        result = self.call(caller("My name is Ewan Reid. Something feels a bit odd on one side sometimes."))
+        self.assertEqual(self.flags(result["case_id"]), ["symptoms_unclear"])
+
+    def test_severe_words_without_a_model_are_flagged(self):
+        result = self.call(caller("My name is Ewan Reid. I think I have an abscess under my tooth."))
+        self.assertEqual(self.flags(result["case_id"]), ["too_severe"])
+
+    def test_voice_tool_flags_too_severe(self):
+        case = client.post("/api/tools/create_intake", json={"name": "Ada Fox", "phone": "07700 900505"}).json()
+        with patch("tools_api.get_anthropic_client", return_value=fake_model(urgency="urgent", complexity=4)):
+            response = client.post("/api/tools/submit_triage", json={
+                "case_id": case["case_id"], "complaint_quote": "It really hurts",
+            }).json()
+        self.assertEqual(response["next_step"], "review")
+        self.assertEqual(self.flags(case["case_id"]), ["too_severe"])
+
+
+class FlagList(IntakeTest):
+    def flagged(self):
+        with patch.object(pipeline, "get_anthropic_client", return_value=fake_model(confidence="low")):
+            result = self.routine_call()
+        item = next(i for i in STATE.needs_attention.values() if i.case_id == result["case_id"])
+        return result, item
+
+    def test_accepting_sends_the_normal_appointment_text(self):
+        result, item = self.flagged()
+        client.post("/api/console/resolve_attention", json={"item_id": item.id, "action": "resolve"})
+        self.assertEqual(STATE.cases[result["case_id"]].status, "accepted")
+        self.assertTrue(any(
+            m.type == "offer_single" for m in STATE.messages.values() if m.patient_id == result["patient_id"]
+        ))
+
+    def test_denying_closes_the_case_and_tells_the_patient(self):
+        result, item = self.flagged()
+        client.post("/api/console/resolve_attention", json={"item_id": item.id, "action": "dismiss"})
+        self.assertEqual(STATE.cases[result["case_id"]].status, "discharged")
+        self.assertEqual(STATE.patients[result["patient_id"]].status, "discharged")
+        messages = [m for m in STATE.messages.values() if m.patient_id == result["patient_id"]]
+        self.assertEqual(messages[-1].title, "We can't book this")
+        self.assertEqual(self.active_bookings(result["patient_id"]), [])
+
+    def test_list_says_which_flags_need_a_decision(self):
+        _, item = self.flagged()
+        items = client.get("/api/console/needs_attention").json()["items"]
+        self.assertEqual(next(i for i in items if i["id"] == item.id)["case"]["status"], "awaiting_tutor")
+
+    def test_seed_flags_follow_the_rules(self):
+        reasons = {item.reason for item in STATE.needs_attention.values()}
+        self.assertNotIn("borderline_complexity", reasons)
+        self.assertIn("too_severe", reasons)
+
+    def test_an_unfilled_chair_stays_on_the_schedule_and_off_the_flags(self):
+        booking = next(b for b in STATE.bookings.values() if b.state == "confirmed")
+        for patient in STATE.patients.values():
+            patient.short_notice_ok = False
+        STATE.trigger_cascade_for_slot(booking.slot_id, booking.id, "Test")
+        self.assertEqual(STATE.active_cascades[booking.slot_id]["status"], "no_candidate")
+        reasons = {item.reason for item in STATE.needs_attention.values()}
+        self.assertNotIn("no_backfill_candidate", reasons)
+
+
+class PatientRecordCalls(IntakeTest):
+    def test_record_has_each_transcript_newest_first(self):
+        phone = "07700 900997"
+        first = self.routine_call(caller_phone=phone, started_at="2026-11-07T09:00:00+00:00")
+        self.routine_call(caller_phone=phone, started_at="2026-11-07T10:00:00+00:00")
+        record = client.get(f"/api/console/patient/{first['patient_id']}").json()
+        history = record["call_history"]
+        self.assertEqual([call["started_at"][:13] for call in history], ["2026-11-07T10", "2026-11-07T09"])
+        self.assertEqual(history[0]["transcript"][0]["text"], ROUTINE_PROBLEM)
 
 
 def fake_model(error=None, **fields):

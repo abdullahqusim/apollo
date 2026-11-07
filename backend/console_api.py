@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from state import STATE
 from models import slot_when
 from models import appointment_id, case_minutes, slot_minutes, to_clock, to_minutes
-from pipeline import rank_clinicians, _active_offer, _release_hold, candidates_for_slot, case_approved, expire_offers, offer_slot, run_batch
+from pipeline import rank_clinicians, _active_offer, _release_hold, candidates_for_slot, case_approved, case_denied, expire_offers, offer_slot, run_batch
 from models import (
     Patient, Case, Slot, Booking, Offer, Clinician,
     NeedsAttentionItem, Event, CallRecord, utc_now_iso, make_id
@@ -228,6 +228,7 @@ def get_needs_attention():
                     "id": case.id,
                     "urgency": case.urgency,
                     "complexity": case.complexity,
+                    "status": case.status,
                     "summary_plain": case.summary_plain,
                     "complaint_quote": case.complaint_quote,
                     "likely_procedures": case.likely_procedures,
@@ -259,16 +260,19 @@ def resolve_attention(req: ResolveAttentionRequest):
         item.status = "resolved" if req.action == "resolve" else "dismissed"
         item.resolution_notes = req.notes
         case = STATE.cases.get(item.case_id) if item.case_id else None
-        if req.action == "resolve" and case and case.status in ("awaiting_tutor", "intake_done"):
-            case.status = "accepted"
-            case_approved(case)
+        if case and case.status in ("awaiting_tutor", "intake_done"):
+            if req.action == "resolve":
+                case.status = "accepted"
+                case_approved(case)
+            else:
+                case_denied(case)
 
         STATE._log_event_locked(
             actor="Receptionist",
             evt_type="needs_attention_resolved",
             entity="ticket",
             payload={"item_id": item.id, "reason": item.reason, "action": req.action},
-            reason=f"Worklist item closed: {req.notes}"
+            reason=f"Flag closed: {req.notes}"
         )
 
     STATE.save_snapshot()
@@ -449,7 +453,9 @@ def get_patient_details(patient_id: str, role: str = Query("receptionist")):
         case = pat_cases[-1] if pat_cases else None
 
         # Call history
-        calls = [c for c in STATE.calls.values() if c.patient_id == pat.id]
+        calls = sorted(
+            (c for c in STATE.calls.values() if c.patient_id == pat.id), key=lambda c: c.started_at, reverse=True,
+        )
 
         # Bookings
         bookings = []

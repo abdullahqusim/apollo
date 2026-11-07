@@ -11,13 +11,14 @@ clinician in a slot that fits the patient, and texts them to confirm. Cancelled 
 1. **Intake.** A call ends and the transcript arrives at `POST /webhooks/call-ended`, or the patient fills in `/join`.
    Both ask for name, date of birth, mobile, the problem, medical history, availability, short notice and earlier
    appointments, and both run `process_intake` in `backend/pipeline.py`.
-2. **Triage.** Emergencies are told to go to A&E and are never booked. Unclear cases wait for a tutor. Clear cases go
-   straight to matching.
+2. **Triage.** Emergencies are told to go to A&E and are never booked. Calls with too little information, and urgent
+   cases that need a postgraduate or dentist, are flagged for someone to accept or deny. Everything else goes straight
+   to matching.
 3. **Matching.** Each procedure has a length, so the engine looks for a gap in a clinician's session that is long
    enough and fits the patient's availability. It holds the time and texts the patient. YES books it. NO offers the
-   next best slot, up to 3 times, then the Worklist takes over. No reply releases the hold.
+   next best slot, up to 3 times, then the patient is flagged for a call. No reply releases the hold.
 4. **Standby.** A cancellation releases the chair to patients who opted in to short notice. If all 3 decline, Schedule
-   and the Worklist flag the chair and suggest patients to text.
+   flags the chair and suggests patients to text.
 
 ## Run it
 

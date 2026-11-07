@@ -15,7 +15,7 @@ from models import (
     CallRecord, utc_now_iso, make_id
 )
 from models import case_minutes
-from pipeline import find_match
+from pipeline import FLAG_ACTIONS, find_match
 from triage import agent_urgency_from, triage, get_anthropic_client, has_red_flag
 
 router = APIRouter(prefix="/api/tools", tags=["Voice Agent Tools"])
@@ -195,22 +195,13 @@ async def submit_triage(req: SubmitTriageRequest):
             att = NeedsAttentionItem(
                 patient_id=case.patient_id,
                 case_id=case.id,
-                reason="low_confidence" if case.confidence == "low" else "borderline_complexity",
+                reason=triage_res.flag,
                 summary=case.summary_plain,
-                suggested_action="Tutor to confirm urgency and grade.",
+                suggested_action=FLAG_ACTIONS[triage_res.flag],
             )
             STATE.needs_attention[att.id] = att
         else:
             case.status = "accepted"
-            if triage_res.disagreement:
-                att = NeedsAttentionItem(
-                    patient_id=case.patient_id,
-                    case_id=case.id,
-                    reason="urgency_disagreement",
-                    summary=f"{triage_res.disagreement} Using {case.urgency}.",
-                    suggested_action="Tutor to confirm the urgency.",
-                )
-                STATE.needs_attention[att.id] = att
 
         STATE._log_event_locked(
             actor="Automated line",

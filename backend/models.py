@@ -223,7 +223,7 @@ class NeedsAttentionItem(BaseModel):
         "no_match",
         "match_declined",
         "low_confidence",
-        "urgency_disagreement",
+        "too_severe",
         "other",
     ]
     summary: str

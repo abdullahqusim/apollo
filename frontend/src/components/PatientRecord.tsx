@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { CALL_OUTCOMES, formatBirthDate, formatDate, formatTime, sentence } from "../format";
 import type { PatientRecordData, Role } from "../types";
+import { Transcript } from "./Transcript";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -160,18 +161,15 @@ export function PatientRecord({ patientId, role, panelRight, onClose, onChanged,
           {record.call_history.length > 0 && (
             <>
               <p className="section-title">Calls</p>
-              <table className="grid">
-                <thead><tr><th>Time</th><th>Outcome</th><th>Summary</th></tr></thead>
-                <tbody>
-                  {record.call_history.map((call) => (
-                    <tr key={call.id}>
-                      <td className="nowrap">{formatTime(call.started_at)}</td>
-                      <td className="nowrap">{CALL_OUTCOMES[call.outcome] ?? sentence(call.outcome)}</td>
-                      <td>{call.summary}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {record.call_history.map((call) => (
+                <div key={call.id}>
+                  <dl className="facts">
+                    <dt>{formatTime(call.started_at)}</dt>
+                    <dd>{CALL_OUTCOMES[call.outcome] ?? sentence(call.outcome)}</dd>
+                  </dl>
+                  <Transcript lines={call.transcript} />
+                </div>
+              ))}
             </>
           )}
         </div>
