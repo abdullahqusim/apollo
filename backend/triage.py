@@ -56,7 +56,7 @@ _RED_FLAG_PATTERNS = [
     r"uncontrolled bleeding",
     r"facial (trauma|injury|fracture)",
     r"high (fever|temperature)",
-    r"(?<!no )chest (pain|pressure)",
+    r"chest (pain|pressure)",
     r"(having|think\w* i'?m having|think\w* it'?s) a (stroke|seizure|fit)\b",
     r"\b(face|mouth) (is )?droop\w*",
     r"(can'?t|cannot|difficulty|trouble|struggling to|hard to)\s+speak\w*",
@@ -66,6 +66,14 @@ _RED_FLAG_PATTERNS = [
     r"\b(kill|harm)\w* (myself|someone|others)\b",
 ]
 _RED_FLAGS = re.compile("|".join(_RED_FLAG_PATTERNS), re.IGNORECASE | re.DOTALL)
+# Only wording right next to the symptom counts. "No, I can't breathe" and "not okay, chest pain" stay emergencies.
+_DENIED = re.compile(
+    r"(?:\b(?:no|not|never|without|not having|not got)\s+(?:any\s+|real\s+|signs?\s+of\s+)?"
+    r"|\b(?:don'?t|doesn'?t|didn'?t|haven'?t|hasn'?t)\s+(?:have|had|got|get)\s+(?:any\s+)?"
+    r"|\b(?:no|without)\b[^.,;!?]*\bor\s+)$",
+    re.IGNORECASE,
+)
+_SEVERE_WORDS = re.compile(r"\b(abscess|pus|knocked out|swollen|swelling)\b", re.IGNORECASE)
 
 
 class Assessment(BaseModel):
@@ -94,8 +102,13 @@ def agent_urgency_from(value: Optional[str]) -> Optional[str]:
     return cleaned if cleaned in URGENCY_ORDER else None
 
 
+def _says(pattern: re.Pattern, text: str) -> bool:
+    """True if the words appear and the speaker isn't saying they don't have them."""
+    return any(not _DENIED.search(text[:match.start()]) for match in pattern.finditer(text))
+
+
 def has_red_flag(patient_text: str) -> bool:
-    return _RED_FLAGS.search(patient_text) is not None
+    return _says(_RED_FLAGS, patient_text)
 
 
 def get_anthropic_client() -> Optional[anthropic.AsyncAnthropic]:
@@ -114,7 +127,7 @@ def heuristic_triage(patient_text: str, transcript: str) -> Assessment:
 
     # Urgency & Complexity heuristics
     patient_only = patient_text.lower()
-    if re.search(r"\b(abscess|pus|knocked out|swollen|swelling)\b", patient_only):
+    if _says(_SEVERE_WORDS, patient_only):
         urgency = "urgent"
         complexity = 4
         confidence = "high"
@@ -222,7 +235,7 @@ async def _assess(
             return TriageResult("emergency", "Triaged as emergency", assessment)
         if assessment.confidence == "low":
             return TriageResult("review", "Symptoms unclear", assessment)
-        return TriageResult("book", f"Triaged as {assessment.urgency} (heuristic)", assessment)
+        return TriageResult("book", f"Triaged as {assessment.urgency}", assessment)
 
     try:
         response = await client.messages.parse(

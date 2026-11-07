@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { CALL_OUTCOMES, formatBirthDate, formatDate, formatTime, sentence } from "../format";
+import { CALL_OUTCOMES, formatBirthDate, formatCallTime, formatDate, sentence } from "../format";
 import type { PatientRecordData, Role } from "../types";
 import { Transcript } from "./Transcript";
 
@@ -61,6 +61,7 @@ export function PatientRecord({ patientId, role, panelRight, onClose, onChanged,
 
   const panel = record?.case?.clinical_panel;
   const history = panel?.medical_history;
+  const emergency = record?.case?.urgency === "emergency";
   const grid = record?.patient.availability.grid;
   const appointment = record?.appointment;
 
@@ -78,7 +79,7 @@ export function PatientRecord({ patientId, role, panelRight, onClose, onChanged,
             <dt>Phone</dt><dd>{record.patient.phone}</dd>
             {record.patient.date_of_birth && <><dt>Date of birth</dt><dd>{formatBirthDate(record.patient.date_of_birth)}</dd></>}
             {record.case && <><dt>Came in by</dt><dd>{record.case.channel === "online" ? "Online form" : "Phone call"}</dd></>}
-            <dt>Short notice</dt><dd>{record.patient.short_notice_ok ? "Yes, on standby" : "No"}</dd>
+            {!emergency && <><dt>Short notice</dt><dd>{record.patient.short_notice_ok ? "Yes, on standby" : "No"}</dd></>}
             {record.patient.flags.length > 0 && <><dt>Flags</dt><dd>{sentence(record.patient.flags.join(", "))}</dd></>}
             {record.patient.dna_count > 0 && <><dt>Missed visits</dt><dd>{record.patient.dna_count}</dd></>}
           </dl>
@@ -141,30 +142,13 @@ export function PatientRecord({ patientId, role, panelRight, onClose, onChanged,
             </>
           )}
 
-          <p className="section-title">Availability</p>
-          <table className="grid">
-            <thead><tr><th>Day</th><th>Morning</th><th>Afternoon</th></tr></thead>
-            <tbody>
-              {DAYS.map((day) => {
-                const value = grid?.[day.toLowerCase()];
-                return (
-                  <tr key={day}>
-                    <td>{day}</td>
-                    <td>{value?.am ? "Yes" : <span className="muted">No</span>}</td>
-                    <td>{value?.pm ? "Yes" : <span className="muted">No</span>}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
           {record.call_history.length > 0 && (
             <>
               <p className="section-title">Calls</p>
               {record.call_history.map((call) => (
                 <div key={call.id}>
                   <dl className="facts">
-                    <dt>{formatTime(call.started_at)}</dt>
+                    <dt>{formatCallTime(call.started_at)}</dt>
                     <dd>{CALL_OUTCOMES[call.outcome] ?? sentence(call.outcome)}</dd>
                   </dl>
                   <Transcript lines={call.transcript} />
@@ -172,6 +156,28 @@ export function PatientRecord({ patientId, role, panelRight, onClose, onChanged,
               ))}
             </>
           )}
+
+          {!emergency && (
+            <>
+            <p className="section-title">Availability</p>
+            <table className="grid">
+              <thead><tr><th>Day</th><th>Morning</th><th>Afternoon</th></tr></thead>
+              <tbody>
+                {DAYS.map((day) => {
+                  const value = grid?.[day.toLowerCase()];
+                  return (
+                    <tr key={day}>
+                      <td>{day}</td>
+                      <td>{value?.am ? "Yes" : <span className="muted">No</span>}</td>
+                      <td>{value?.pm ? "Yes" : <span className="muted">No</span>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            </>
+          )}
+
         </div>
       )}
     </aside>

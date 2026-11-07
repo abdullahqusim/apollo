@@ -21,9 +21,10 @@ from models import (
     to_clock, to_minutes, utc_now_iso,
 )
 from state import STATE
-from triage import get_anthropic_client, has_red_flag, triage
+from triage import URGENCY_ORDER as RATINGS, TriageResult, get_anthropic_client, triage
 
 ACTIVE_BOOKING = ("held", "confirmed", "locked")
+OPEN_CASE = ("intake_done", "awaiting_tutor", "accepted", "scheduled")
 WINDOW_DAYS = {"urgent": 2, "soon": 14, "routine": 21}
 MAX_PROPOSALS = 3
 URGENCY_ORDER = {"urgent": 0, "soon": 1, "routine": 2}
@@ -165,7 +166,7 @@ def propose(case: Case, patient: Patient, match: Dict[str, Any], actor: str = "M
     STATE._log_event_locked(
         actor=actor, evt_type="match_offered", entity="booking",
         payload={"booking_id": booking.id, "slot_id": slot.id, "patient_id": patient.id},
-        reason=f"{patient.name} offered {slot.date} {slot.start} with {clinician.name}. {match['reasons'][0]}.",
+        reason=f"{patient.name} offered {slot_when(slot)} with {clinician.name}. {match['reasons'][0]}.",
     )
     return offer
 
@@ -298,37 +299,67 @@ def _find_patient(name: str, phone: str) -> Optional[Patient]:
 
 def _open_case(patient_id: str) -> Optional[Case]:
     for case in STATE.cases.values():
-        if case.patient_id == patient_id and case.status in ("intake_done", "awaiting_tutor", "accepted", "scheduled"):
+        if case.patient_id == patient_id and case.status in OPEN_CASE:
             return case
     return None
+
+
+def _stand_down(patient: Patient, keep: Case, reason: str) -> None:
+    """Withdraw everything a patient has open, so a chair isn't held for someone who won't come."""
+    for booking in [b for b in STATE.bookings.values() if b.patient_id == patient.id and b.state in ACTIVE_BOOKING]:
+        STATE.trigger_cascade_for_slot(booking.slot_id, booking.id, reason, cancelled_by="Automated line")
+    for offer in [o for o in STATE.offers.values() if o.patient_id == patient.id and o.response == "pending"]:
+        offer.response = "expired"
+        _follow_up_standby(offer.slot_id)
+    for case in STATE.cases.values():
+        if case.patient_id == patient.id and case.id != keep.id and case.status in OPEN_CASE:
+            case.status = "cancelled"
+
+
+def _update_open_case(data: IntakeData, patient: Patient, case: Case, result: TriageResult) -> Dict[str, Any]:
+    """A patient we already have called again. Their details refresh, and getting worse reaches a person."""
+    patient.date_of_birth = data.date_of_birth or patient.date_of_birth
+    patient.availability.grid = data.availability
+    patient.short_notice_ok = data.short_notice_ok
+    patient.wants_earlier = data.wants_earlier
+    case.medical_history = data.medical_history or case.medical_history
+
+    assessment = result.assessment
+    worse = assessment and RATINGS.index(assessment.urgency) < RATINGS.index(case.urgency)
+    if worse:
+        before, case.urgency = case.urgency, assessment.urgency
+        case.summary_plain = assessment.summary_plain
+        _flag(patient, case, "got_worse", f"Called back. Was {before}, now {case.urgency}. {case.summary_plain}",
+              "Check whether they need to be seen sooner.")
+        booked = _active_offer(patient.id) or _active_booking(patient.id)
+        if case.status == "accepted" and not booked:
+            match_case(case, patient)
+    STATE.send_message_locked(
+        patient_id=patient.id, msg_type="changed", title="Details updated",
+        body=("Thanks for letting us know. We will check whether you need to be seen sooner." if worse else
+              "We already have you on our list, so we have updated your availability."),
+    )
+    STATE._log_event_locked(
+        actor="Automated line" if data.channel == "phone" else "Online form",
+        evt_type="availability_updated", entity="patient", payload={"patient_id": patient.id},
+        reason=f"{patient.name} called again and got worse." if worse else f"{patient.name} updated their availability.",
+    )
+    STATE.save_snapshot()
+    return {"outcome": "updated", "patient_id": patient.id, "case_id": case.id, "token": patient.contact_token}
 
 
 async def process_intake(data: IntakeData) -> Dict[str, Any]:
     """Shared by the phone webhook and the online form."""
     with STATE._lock:
         patient = _find_patient(data.name, data.phone)
-        emergency = data.agent_urgency == "emergency" or has_red_flag(data.problem)
-        if patient and _open_case(patient.id) and not emergency:
-            patient.date_of_birth = data.date_of_birth or patient.date_of_birth
-            patient.availability.grid = data.availability
-            patient.short_notice_ok = data.short_notice_ok
-            patient.wants_earlier = data.wants_earlier
-            STATE.send_message_locked(
-                patient_id=patient.id, msg_type="changed", title="Details updated",
-                body="We already have you on our list, so we have updated your availability.",
-            )
-            STATE._log_event_locked(
-                actor="Automated line" if data.channel == "phone" else "Online form",
-                evt_type="availability_updated", entity="patient", payload={"patient_id": patient.id},
-                reason=f"{patient.name} updated their availability.",
-            )
-            STATE.save_snapshot()
-            return {"outcome": "updated", "patient_id": patient.id, "token": patient.contact_token}
 
     result = await triage(get_anthropic_client(), data.problem, data.transcript or data.problem, data.agent_urgency)
     assessment = result.assessment
 
     with STATE._lock:
+        existing = _open_case(patient.id) if patient else None
+        if patient and existing and result.next_step != "emergency":
+            return _update_open_case(data, patient, existing, result)
         if not patient:
             patient = Patient(name=data.name, phone=data.phone, joined_via_qr=data.channel == "online")
             STATE.patients[patient.id] = patient
@@ -370,6 +401,7 @@ async def process_intake(data: IntakeData) -> Dict[str, Any]:
 
         if result.next_step == "emergency":
             outcome = "emergency"
+            _stand_down(patient, case, "Patient sent to emergency care")
             case.urgency = "emergency"
             case.status = "emergency_redirected"
             patient.status = "cancelled"
@@ -408,8 +440,10 @@ def case_approved(case: Case) -> None:
 
 def case_denied(case: Case) -> None:
     """Staff turned the case down, so it leaves the waiting list and the patient is told."""
-    case.status = "discharged"
     patient = STATE.patients.get(case.patient_id)
+    if patient:
+        _stand_down(patient, case, "Case turned down by staff")
+    case.status = "discharged"
     if patient:
         patient.status = "discharged"
         STATE.send_message_locked(

@@ -73,6 +73,13 @@ Two separate scores, never merged into one number.
 complexity 4+ (too severe). Accepting matches it as normal. Denying closes it and texts the patient. Everything else,
 including medium confidence, is matched straight away and the patient answers YES or NO by text.
 
+**Returning callers.** A second call is triaged again. Urgency only ever goes up: getting worse raises the case and adds
+a flag, and any existing appointment stays put until a person moves it. An emergency cancels their appointment, withdraws
+any offer and releases the chair.
+
+**Denied symptoms.** "No trouble breathing" is not a red flag. Only wording right beside the symptom counts as a denial,
+so "No, I can't breathe" stays an emergency.
+
 **Clinical panel** (clinical view only):
 - complaint in patient's own words (quoted)
 - key details
@@ -230,8 +237,8 @@ Tabs:
    procedure, so days have uneven blocks and gaps. Selecting an appointment opens its details below and switches the
    patient phone to that patient. A released chair shows who it was offered to, their replies and time left. Selecting
    a free gap suggests waiting patients who fit it.
-2. **Flags** (human-in-the-loop queue): emergencies, too severe, too little information, asked for a person, identity
-   unconfirmed, no slot for an urgent case, offers turned down. Too severe and too little information are accepted or
+2. **Flags** (human-in-the-loop queue): emergencies, too severe, too little information, got worse, asked for a person,
+   identity unconfirmed, no slot for an urgent case, offers turned down. Too severe and too little information are accepted or
    denied. The rest are marked done. Unfilled chairs stay in Schedule. Any row opens the patient record.
 3. **Calls**: every call, newest first. A row opens the patient record. Callers with no record show the transcript.
 4. **Waiting list**: stages enquiry -> intake done -> awaiting tutor -> accepted -> scheduled -> in treatment ->

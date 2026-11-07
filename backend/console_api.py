@@ -614,6 +614,10 @@ def assign_slot_manual(req: AssignSlotRequest):
                 body=f"Booked: {slot_when(slot)} with {cln.name if cln else 'the clinical team'}, {slot.bay}. Reply CANCEL if you can't make it.",
             )
         case.status = "scheduled"
+        for item in STATE.needs_attention.values():
+            if item.case_id == case.id and item.status == "open":
+                item.status = "resolved"
+                item.resolution_notes = "Booked by reception"
 
         STATE._log_event_locked(
             actor="Receptionist",
@@ -658,7 +662,7 @@ def review_triage(req: ReviewTriageRequest):
             case.status = "accepted"
             case_approved(case)
         elif req.decision == "reject":
-            case.status = "discharged"
+            case_denied(case)
 
         # Resolve any associated needs attention item
         for att in STATE.needs_attention.values():

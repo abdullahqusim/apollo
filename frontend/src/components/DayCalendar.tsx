@@ -109,11 +109,15 @@ export function DayCalendar({ day, selectedId, onSelect }: {
           return (
             <div className="cal-bay" key={bay}>
               <strong>{bay}</strong>
-              {blocks.map((block) => (
-                <span key={block.session} title={`${block.clinician.name}, ${block.clinician.tier_name}`}>
-                  {block.session} {block.clinician.name.replace("Dr. ", "")} {shortGrade(block.clinician.tier_name)}
-                </span>
-              ))}
+              {blocks.map((block) => {
+                const allDay = blocks.length > 1 && blocks[0].clinician.id === blocks[1].clinician.id;
+                if (allDay && block !== blocks[0]) return null;
+                return (
+                  <span key={block.session} title={`${block.clinician.name}, ${block.clinician.tier_name}`}>
+                    {allDay ? "" : `${block.session} `}{block.clinician.name.replace("Dr. ", "")} {shortGrade(block.clinician.tier_name)}
+                  </span>
+                );
+              })}
             </div>
           );
         })}

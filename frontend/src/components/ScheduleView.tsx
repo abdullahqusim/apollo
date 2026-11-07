@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { formatDate, minutesLeft, OFFER_REPLIES, refillOutcome, sentence, shiftWeekday, urgencyTone } from "../format";
+import { formatDate, OFFER_REPLIES, refillOutcome, sentence, shiftWeekday, timeLeft, urgencyTone } from "../format";
 import type { Candidate, FreeGap, ReleasedSlot, SlotItem, TodayData } from "../types";
 import { DayCalendar } from "./DayCalendar";
 
@@ -143,7 +143,7 @@ function SlotDetails({ slot, released, onOpenPatient, onOpenPhone, onCancel, onF
                       <td><span className={`tag ${reply.tone}`}>{reply.label}</span></td>
                       {!unfilled && (
                         <>
-                          <td className="num">{offer.response === "pending" ? `${minutesLeft(offer.expires_at)} min` : ""}</td>
+                          <td className="num">{offer.response === "pending" ? timeLeft(offer.expires_at) : ""}</td>
                           <td className="actions"><button className="btn small" onClick={() => onOpenPhone(offer.token)}>Open phone</button></td>
                         </>
                       )}

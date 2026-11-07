@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -18,7 +19,7 @@ from intake_parsing import parse_dob, read_history
 from main import app
 from models import MedicalHistory
 from state import STATE
-from triage import Assessment
+from triage import Assessment, has_red_flag
 
 client = TestClient(app)
 
@@ -369,6 +370,149 @@ class PatientRecordCalls(IntakeTest):
         history = record["call_history"]
         self.assertEqual([call["started_at"][:13] for call in history], ["2026-11-07T10", "2026-11-07T09"])
         self.assertEqual(history[0]["transcript"][0]["text"], ROUTINE_PROBLEM)
+
+
+class DeniedSymptoms(IntakeTest):
+    def test_saying_you_do_not_have_a_symptom_is_not_an_emergency(self):
+        for said in (
+            "No trouble breathing", "no difficulty swallowing, just a loose crown", "no high fever",
+            "I don't have any chest pain", "I haven't had chest pain", "without any trouble speaking",
+            "no fever or trouble breathing", "no swelling near my eye", "not having chest pain",
+        ):
+            self.assertFalse(has_red_flag(said), said)
+
+    def test_real_emergencies_survive_nearby_negatives(self):
+        for said in (
+            "I can't breathe", "No, I can't breathe", "It's not okay, I have chest pain", "no I have chest pain",
+            "My swelling is going down my neck, no pain though", "I'm not sure but I can't breathe",
+            "I don't know what to do, I have chest pain", "It won't stop bleeding",
+        ):
+            self.assertTrue(has_red_flag(said), said)
+
+    def test_ordinary_call_mentioning_no_breathing_trouble_is_matched(self):
+        result = self.call(caller("My name is Rory Sinclair. I lost a filling. No trouble breathing or anything."))
+        self.assertEqual(result["outcome"], "offered")
+
+    def test_denied_swelling_is_not_too_severe(self):
+        result = self.call(caller("My name is Rory Sinclair. My tooth aches but there is no swelling."))
+        self.assertEqual(self.flags(result["case_id"]), [])
+
+
+class ReturningCallers(IntakeTest):
+    PHONE = "07700 920001"
+
+    def ring(self, words):
+        return self.call(caller(f"My name is Rory Sinclair. {words}"), caller_phone=self.PHONE)
+
+    def booked_first(self):
+        first = self.ring("I lost a filling and cold drinks hurt.")
+        token = STATE.patients[first["patient_id"]].contact_token
+        client.post(f"/api/patient/{token}/reply", json={"text": "YES"})
+        return first
+
+    def test_getting_worse_raises_the_urgency_and_flags_it(self):
+        first = self.ring("I lost a filling and cold drinks hurt.")
+        second = self.ring("It is now severe pain and I can't sleep.")
+        self.assertEqual(second["outcome"], "updated")
+        self.assertEqual(STATE.cases[first["case_id"]].urgency, "urgent")
+        self.assertEqual(self.flags(first["case_id"]), ["got_worse"])
+
+    def test_an_appointment_is_not_moved_without_a_person(self):
+        first = self.booked_first()
+        self.ring("It is now severe pain and I can't sleep.")
+        booking = self.active_bookings(first["patient_id"])
+        self.assertEqual([b.state for b in booking], ["confirmed"])
+        self.assertEqual(self.flags(first["case_id"]), ["got_worse"])
+
+    def test_calling_again_about_the_same_thing_raises_nothing(self):
+        first = self.ring("I lost a filling and cold drinks hurt.")
+        self.ring("I lost a filling. I can do Tuesdays now.")
+        self.assertEqual(STATE.cases[first["case_id"]].urgency, "routine")
+        self.assertEqual(self.flags(first["case_id"]), [])
+
+    def test_a_vaguer_second_call_never_lowers_the_urgency(self):
+        first = self.ring("I have severe pain.")
+        self.ring("Just checking in.")
+        self.assertEqual(STATE.cases[first["case_id"]].urgency, "urgent")
+
+    def test_emergency_cancels_the_appointment_and_frees_the_chair(self):
+        first = self.booked_first()
+        slot_id = next(b for b in STATE.bookings.values() if b.patient_id == first["patient_id"]).slot_id
+        second = self.ring("I have chest pain.")
+        self.assertEqual(second["outcome"], "emergency")
+        self.assertEqual(self.active_bookings(first["patient_id"]), [])
+        self.assertIn(slot_id, STATE.active_cascades)
+        self.assertEqual(STATE.cases[first["case_id"]].status, "cancelled")
+        self.assertEqual(STATE.patients[first["patient_id"]].status, "cancelled")
+
+    def test_emergency_withdraws_a_pending_offer(self):
+        first = self.ring("I lost a filling and cold drinks hurt.")
+        self.ring("I have chest pain.")
+        offers = [o for o in STATE.offers.values() if o.patient_id == first["patient_id"]]
+        self.assertTrue(offers)
+        self.assertNotIn("pending", [o.response for o in offers])
+        self.assertEqual(self.active_bookings(first["patient_id"]), [])
+
+
+class StaffActions(IntakeTest):
+    def flagged(self):
+        return self.call(caller("My name is Ewan Reid. Something feels a bit odd on one side."))
+
+    def test_clinical_reject_tells_the_patient(self):
+        result = self.flagged()
+        client.post("/api/console/review_triage", json={"case_id": result["case_id"], "decision": "reject"})
+        self.assertEqual(STATE.patients[result["patient_id"]].status, "discharged")
+        messages = [m for m in STATE.messages.values() if m.patient_id == result["patient_id"]]
+        self.assertEqual(messages[-1].title, "We can't book this")
+
+    def test_clinical_reject_frees_any_appointment(self):
+        result = self.routine_call()
+        token = STATE.patients[result["patient_id"]].contact_token
+        client.post(f"/api/patient/{token}/reply", json={"text": "YES"})
+        client.post("/api/console/review_triage", json={"case_id": result["case_id"], "decision": "reject"})
+        self.assertEqual(self.active_bookings(result["patient_id"]), [])
+        self.assertEqual(STATE.cases[result["case_id"]].status, "discharged")
+
+    def test_booking_by_hand_closes_the_flag(self):
+        result = self.flagged()
+        shortlist = client.get(f"/api/console/assign_shortlist/{result['case_id']}").json()["shortlist"]
+        slot = next(s for row in shortlist for s in row["candidate_slots"])
+        client.post("/api/console/assign", json={
+            "case_id": result["case_id"], "slot_id": slot["slot_id"], "reason_chip": "other",
+        })
+        items = [i for i in STATE.needs_attention.values() if i.case_id == result["case_id"]]
+        self.assertEqual([i.status for i in items], ["resolved"])
+
+
+class DemoData(IntakeTest):
+    def test_nobody_waits_for_review_without_a_flag(self):
+        open_items = {i.case_id for i in STATE.needs_attention.values() if i.status == "open"}
+        stuck = [c.id for c in STATE.cases.values() if c.status in ("awaiting_tutor", "intake_done") and c.id not in open_items]
+        self.assertEqual(stuck, [])
+
+    def test_activity_is_never_in_the_future(self):
+        now = datetime.now(timezone.utc).isoformat()
+        stamps = [c.started_at for c in STATE.calls.values()] + [e.at for e in STATE.events]
+        stamps += [i.created_at for i in STATE.needs_attention.values()]
+        self.assertEqual([s for s in stamps if s[:19] > now[:19]], [])
+
+    def test_a_new_call_is_first_in_the_call_log(self):
+        result = self.routine_call()
+        calls = client.get("/api/console/overnight").json()["calls"]
+        self.assertEqual(calls[0]["patient_id"], result["patient_id"])
+
+    def test_seed_agent_never_diagnoses_or_advises(self):
+        said = " ".join(
+            line["text"] for call in STATE.calls.values() for line in call.transcript if line["speaker"] == "agent"
+        ).lower()
+        for words in ("fracture", "bite firmly", "tutor review"):
+            self.assertNotIn(words, said)
+
+    def test_audit_log_reads_plainly(self):
+        self.routine_call()
+        details = " ".join(event.reason for event in STATE.events)
+        self.assertNotIn("heuristic", details)
+        self.assertNotRegex(details, r"offered \d{4}-\d{2}-\d{2}")
 
 
 def fake_model(error=None, **fields):

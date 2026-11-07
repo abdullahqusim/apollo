@@ -8,6 +8,13 @@ export const formatDateTime = (iso: string) =>
     day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: zone,
   });
 
+/** Calls span several days, so the time alone would read out of order. */
+export const formatCallTime = (iso: string) => {
+  const value = new Date(iso);
+  const day = value.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: zone });
+  return `${day}, ${formatTime(iso)}`;
+};
+
 /** Takes a date-only string such as 2026-11-09. */
 export const formatDate = (date: string, style: "long" | "short" = "short") => {
   const value = new Date(`${date}T12:00:00Z`);
@@ -41,7 +48,13 @@ export const sentence = (value: string) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
-export const minutesLeft = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 60000));
+/** How long is left, in the largest unit that reads naturally: 25 minutes, 4 hours. */
+export const timeLeft = (iso: string) => {
+  const minutes = Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 60000));
+  if (minutes <= 90) return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+};
 
 export const refillOutcome = (refill: { status: string; declined: number; sent: number }) => {
   if (refill.status === "no_candidate") return "No standby match";
@@ -52,6 +65,7 @@ export const refillOutcome = (refill: { status: string; declined: number; sent: 
 export const FLAG_TYPES: Record<string, string> = {
   red_flag: "Emergency",
   too_severe: "Too severe",
+  got_worse: "Got worse",
   borderline_complexity: "Tutor review",
   symptoms_unclear: "Too little information",
   low_confidence: "Too little information",

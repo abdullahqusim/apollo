@@ -46,7 +46,7 @@ Run the tests with `python -m unittest discover backend`. They use a temporary s
 ## Demo
 
 1. **Call.** Tools > Simulate a call. The patient phone on the right shows the appointment text. Tap Yes.
-2. **Why.** Waiting list > open the patient to see why the engine chose that clinician and slot.
+2. **Why.** Waiting list > All patients > open the patient to see why the engine chose that clinician and slot.
 3. **Batch.** Waiting list > Match waiting list texts everyone waiting. Step through days in Schedule to see the holds.
    Click a free gap in the calendar to see which waiting patients fit it.
 4. **Online.** Tools > Online sign-up QR code. Same questions, same outcome. Tick short notice and earlier to be

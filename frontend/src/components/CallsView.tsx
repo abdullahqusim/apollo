@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { CALL_OUTCOMES, formatTime, sentence, urgencyTone } from "../format";
+import { CALL_OUTCOMES, formatCallTime, sentence, urgencyTone } from "../format";
 import type { Call } from "../types";
 import { Transcript } from "./Transcript";
 
@@ -23,7 +23,7 @@ export function CallsView({ calls, onOpenPatient }: { calls: Call[]; onOpenPatie
                     className={`clickable ${expanded ? "selected" : ""}`}
                     onClick={() => (patientId ? onOpenPatient(patientId) : setOpenCall(expanded ? null : call.call_id))}
                   >
-                    <td className="nowrap">{formatTime(call.started_at)}</td>
+                    <td className="nowrap">{formatCallTime(call.started_at)}</td>
                     <td className="nowrap">
                       {patientId ? <button className="link">{call.patient_name}</button> : call.patient_name}
                     </td>

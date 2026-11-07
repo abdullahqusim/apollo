@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { formatDate, formatTime, minutesLeft } from "../format";
+import { formatDate, formatTime, timeLeft } from "../format";
 import type { ThreadData } from "../types";
 
 /** The patient's text thread. Used by real phones at /p/<token> and inside the simulator. */
@@ -71,7 +71,7 @@ export function PhoneThread({ token }: { token: string }) {
       {thread.can_answer_offer && (
         <div className="thread-actions">
           {thread.offer_expires_at && (
-            <p className="hint">{minutesLeft(thread.offer_expires_at)} minutes left to reply</p>
+            <p className="hint">{timeLeft(thread.offer_expires_at)} left to reply</p>
           )}
           <div className="row">
             <button className="reply solid" disabled={sending} onClick={() => send("YES")}>Yes</button>

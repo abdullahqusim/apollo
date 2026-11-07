@@ -13,7 +13,7 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "unmatched", label: "Waiting for a match" },
   { id: "offered", label: "Offered, awaiting reply" },
   { id: "booked", label: "Booked" },
-  { id: "review", label: "Tutor review" },
+  { id: "review", label: "Flagged" },
   { id: "closed", label: "Closed" },
 ];
 
@@ -32,7 +32,7 @@ function Status({ item }: { item: WaitingCase }) {
       : <span className="tag green">Booked {when}</span>;
   }
   const stage = stageOf(item);
-  if (stage === "review") return <span className="tag amber">Tutor review</span>;
+  if (stage === "review") return <span className="tag amber">Flagged</span>;
   if (stage === "unmatched") return <span className="tag">Waiting for a match</span>;
   if (item.status === "emergency_redirected") return <span className="tag red">Sent to A&amp;E</span>;
   return <span className="tag">{sentence(item.status)}</span>;

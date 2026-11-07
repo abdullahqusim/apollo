@@ -34,7 +34,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .topbar { display: flex; align-items: center; gap: 22px; flex: none; height: 52px; padding: 0 18px; background: var(--nav); color: #fff; }
 .brand { font-size: 17px; font-weight: 600; }
 .tabs { display: flex; gap: 2px; height: 100%; align-items: stretch; }
-.tab { position: relative; padding: 0 13px; border: 0; background: none; color: #c6d3e2; cursor: pointer; }
+.tab { position: relative; padding: 0 13px; white-space: nowrap; border: 0; background: none; color: #c6d3e2; cursor: pointer; }
 .tab:hover { color: #fff; }
 .tab[aria-selected="true"] { color: #fff; font-weight: 600; box-shadow: inset 0 -3px 0 #7db4f0; }
 .tab .count { display: inline-block; min-width: 19px; margin-left: 5px; padding: 0 5px; border-radius: 10px; background: #d9483b; color: #fff; font-size: 12px; font-weight: 600; text-align: center; }
@@ -165,7 +165,7 @@ table { border-collapse: collapse; width: 100%; }
 .chev { display: inline-block; width: 15px; font-weight: 400; color: var(--ink-soft); }
 .grid tbody tr.open-row > td { background: var(--blue-soft); box-shadow: inset 0 -1px 0 #bdd5f0; }
 .meter-cell { display: flex; align-items: center; gap: 9px; min-width: 170px; }
-.meter-cell span:last-child { min-width: 58px; font-variant-numeric: tabular-nums; }
+.meter-cell > span:last-child { min-width: 58px; font-variant-numeric: tabular-nums; }
 .meter { flex: 1; height: 7px; overflow: hidden; border-radius: 4px; background: #e7ebf0; }
 .meter span { display: block; height: 100%; border-radius: 4px; background: #4a7fbd; }
 .clin-detail { display: grid; grid-template-columns: minmax(250px, 1fr) minmax(0, 1.5fr); gap: 28px; padding: 12px 14px 14px 29px; background: #f7fafd; border-left: 3px solid var(--blue); }
@@ -274,7 +274,8 @@ table { border-collapse: collapse; width: 100%; }
   .workspace { flex-direction: column; overflow: auto; }
   .content, .content.fit { overflow: visible; padding: 12px; display: block; }
   .cal-area { display: block; }
-  .calendar { height: 520px; flex: none; }
+  .calendar { height: 520px; flex: none; overflow: auto; }
+  .cal-grid { min-width: 860px; }
   .drawer-split { display: block; }
   .phone-dock { width: 100%; height: 560px; border-left: 0; }
   .record { top: 0; }
