@@ -9,8 +9,8 @@ clinician in a slot that fits the patient, and texts them to confirm. Cancelled 
 ## How a patient moves through Apollo
 
 1. **Intake.** A call ends and the transcript arrives at `POST /webhooks/call-ended`, or the patient fills in `/join`.
-   Both ask for name, mobile, the problem, availability, short notice and earlier appointments, and both run
-   `process_intake` in `backend/pipeline.py`.
+   Both ask for name, date of birth, mobile, the problem, medical history, availability, short notice and earlier
+   appointments, and both run `process_intake` in `backend/pipeline.py`.
 2. **Triage.** Emergencies are told to go to A&E and are never booked. Unclear cases wait for a tutor. Clear cases go
    straight to matching.
 3. **Matching.** Each procedure has a length, so the engine looks for a gap in a clinician's session that is long
@@ -39,6 +39,8 @@ python run.py
 Set `ANTHROPIC_API_KEY` for live triage. Without it, triage falls back to keyword rules.
 
 State is saved to `backend/state.json`. Use Tools > Reset demo data in the console to return to the seed data.
+
+Run the tests with `python -m unittest discover backend`. They use a temporary snapshot, so your state is safe.
 
 ## Demo
 

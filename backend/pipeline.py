@@ -10,17 +10,18 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from intake_parsing import full_week
+from intake_parsing import full_week, read_history
 from matching import (
     OFFER_TIMEOUTS_MINUTES, calculate_waitlist_priority, check_competency,
     patient_available_for_slot, rank_eligible_clinicians,
 )
 from models import (
-    Booking, Case, NeedsAttentionItem, Offer, Patient, Slot, TIER_NAMES, case_minutes, slot_minutes, slot_when,
+    Booking, Case, MedicalHistory, NeedsAttentionItem, Offer, Patient, Slot, TIER_NAMES, case_minutes, slot_minutes,
+    slot_when,
     to_clock, to_minutes, utc_now_iso,
 )
 from state import STATE
-from triage import get_anthropic_client, triage
+from triage import get_anthropic_client, has_red_flag, triage
 
 ACTIVE_BOOKING = ("held", "confirmed", "locked")
 WINDOW_DAYS = {"urgent": 2, "soon": 14, "routine": 21}
@@ -39,6 +40,9 @@ class IntakeData:
     availability: Dict[str, Dict[str, bool]] = field(default_factory=full_week)
     short_notice_ok: bool = False
     wants_earlier: bool = False
+    date_of_birth: Optional[str] = None
+    medical_history: Optional[MedicalHistory] = None  # Given directly. Otherwise read from the transcript.
+    agent_urgency: Optional[str] = None
 
 
 # --- Matching ---------------------------------------------------------------
@@ -299,7 +303,9 @@ async def process_intake(data: IntakeData) -> Dict[str, Any]:
     """Shared by the phone webhook and the online form."""
     with STATE._lock:
         patient = _find_patient(data.name, data.phone)
-        if patient and _open_case(patient.id):
+        emergency = data.agent_urgency == "emergency" or has_red_flag(data.problem)
+        if patient and _open_case(patient.id) and not emergency:
+            patient.date_of_birth = data.date_of_birth or patient.date_of_birth
             patient.availability.grid = data.availability
             patient.short_notice_ok = data.short_notice_ok
             patient.wants_earlier = data.wants_earlier
@@ -315,13 +321,14 @@ async def process_intake(data: IntakeData) -> Dict[str, Any]:
             STATE.save_snapshot()
             return {"outcome": "updated", "patient_id": patient.id, "token": patient.contact_token}
 
-    result = await triage(get_anthropic_client(), data.problem, data.transcript or data.problem)
+    result = await triage(get_anthropic_client(), data.problem, data.transcript or data.problem, data.agent_urgency)
     assessment = result.assessment
 
     with STATE._lock:
         if not patient:
             patient = Patient(name=data.name, phone=data.phone, joined_via_qr=data.channel == "online")
             STATE.patients[patient.id] = patient
+        patient.date_of_birth = data.date_of_birth or patient.date_of_birth
         patient.availability.grid = data.availability
         patient.availability.source = "call" if data.channel == "phone" else "patient_confirmed"
         patient.availability.confirmed_at = utc_now_iso()
@@ -330,12 +337,17 @@ async def process_intake(data: IntakeData) -> Dict[str, Any]:
         patient.status = "waitlist"
 
         complexity = assessment.complexity if assessment else (5 if result.next_step == "emergency" else 2)
+        history = data.medical_history or (assessment.medical_history if assessment else read_history(data.transcript))
         case = Case(
             patient_id=patient.id,
             channel=data.channel,
             summary_plain=assessment.summary_plain if assessment else data.problem[:160],
             complaint_quote=data.problem,
-            urgency=assessment.urgency if assessment else ("emergency" if result.next_step == "emergency" else "routine"),
+            urgency=assessment.urgency if assessment else (
+                "emergency" if result.next_step == "emergency" else data.agent_urgency or "routine"
+            ),
+            agent_urgency=data.agent_urgency,
+            medical_history=history,
             complexity=complexity,
             required_tier=complexity,
             confidence=assessment.confidence if assessment else "low",
@@ -366,13 +378,18 @@ async def process_intake(data: IntakeData) -> Dict[str, Any]:
             outcome = "review"
             case.status = "awaiting_tutor"
             reason = "borderline_complexity" if case.confidence == "medium" else "symptoms_unclear"
-            _flag(patient, case, reason, case.summary_plain, "Tutor to approve the case so it can be matched.")
+            summary = f"{case.summary_plain} {result.disagreement}" if result.disagreement else case.summary_plain
+            _flag(patient, case, reason, summary, "Tutor to approve the case so it can be matched.")
             STATE.send_message_locked(
                 patient_id=patient.id, msg_type="received", title="Details received",
                 body=f"Thanks {patient.name.split()[0]}. A clinician needs to check your details first. We will text you when they have.",
             )
         else:
             case.status = "accepted"
+            if result.disagreement:
+                # Matching carries on at the more urgent level. Closing this item only confirms that level.
+                _flag(patient, case, "urgency_disagreement", f"{result.disagreement} Using {case.urgency}.",
+                      "Tutor to confirm the urgency.")
             STATE.send_message_locked(
                 patient_id=patient.id, msg_type="received", title="Details received",
                 body=f"Thanks {patient.name.split()[0]}, we have your details and availability.",

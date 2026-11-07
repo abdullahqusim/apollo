@@ -29,11 +29,12 @@ Health data is special category data under GDPR: role-based views are our data-m
 
 ## 3. Data model
 
-- **Patient**: id, name, phone, contact_token, availability, short_notice_ok, wants_earlier, notice_needed_days,
+- **Patient**: id, name, phone, date_of_birth, contact_token, availability, short_notice_ok, wants_earlier, notice_needed_days,
   flags (anxious, interpreter, access_needs), dna_count, status, created_at
 - **Availability**: grid of weekday x {AM, PM}, blackout_dates[], source (`call` | `patient_confirmed`), confirmed_at
 - **Case**: id, patient_id, summary_plain, complaint_quote, key_details{duration, pain_score, swelling, triggers,
-  history_flags}, urgency, complexity, confidence, possible_issues[], not_ruled_out[], likely_procedures[],
+  history_flags}, urgency, agent_urgency, medical_history{conditions[], allergies[], medications[], declined} (clinical
+  view only; null means never asked), complexity, confidence, possible_issues[], not_ruled_out[], likely_procedures[],
   required_tier, status, tutor_review{decision, by, at}, confirmed_at_assessment{agree|edit|reject, notes}
 - **Clinician**: id, name, tier, year (students), supervisor_id, competencies[], logbook_targets{procedure: n},
   logbook_done{procedure: n}, sessions[], status (active, leave, exam_week, off_clinic)
@@ -200,8 +201,14 @@ End-of-call webhook `POST /webhooks/call-ended`:
 }
 ```
 
-Add `caller_phone` so we can text the patient. Optional: `caller_name`, `availability_text`, `short_notice_ok`,
-`wants_earlier`. Anything not sent is read from the transcript. Repeat `call_id`s are ignored.
+Add `caller_phone` so we can text the patient. Optional: `caller_name`, `caller_dob`, `availability_text`,
+`short_notice_ok`, `wants_earlier`, `conditions[]`, `allergies[]`, `medications[]`, `history_declined`,
+`agent_urgency` (`urgent|soon|routine`). Anything not sent is read from the transcript, apart from `agent_urgency`.
+Repeat `call_id`s are ignored.
+
+Urgency: the agent and triage both rate the call, and the more urgent rating is used. A disagreement stays on the
+case and adds a Worklist item, but does not hold up matching. `emergency_redirected` always counts as an emergency,
+even if triage disagrees, so a caller told to dial 999 is never booked.
 
 Outbound (if supported): `POST /calls/outbound {patient_id, purpose: "offer", slot_ids[]}` -> agent offers
 <=2 times, calls `book_slot` or declines.
@@ -235,8 +242,8 @@ Choosing anyone else needs a reason (patient request, continuity, clinician requ
 
 ## 11. Patient pages
 
-- `/join`: the online version of the call. Same questions (name, mobile, problem in their own words, availability,
-  short notice, earlier appointments), same intake, same outcomes.
+- `/join`: the online version of the call. Same questions (name, date of birth, mobile, problem in their own words,
+  medical history, availability, short notice, earlier appointments), same intake, same outcomes.
 - `/p/<token>`: the patient's text thread, live. Yes and No answer an offer. Cancel appointment releases the chair.
 - `/phone` and the console's Patient phone panel show the same thread in a phone frame for any patient.
 - Parallel offers to several judges demonstrate first-confirm-wins live.

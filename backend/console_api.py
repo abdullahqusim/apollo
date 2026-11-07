@@ -477,6 +477,7 @@ def get_patient_details(patient_id: str, role: str = Query("receptionist")):
                 "id": case.id if case else "",
                 "summary_plain": case.summary_plain if case else "",
                 "urgency": case.urgency if case else "routine",
+                "agent_urgency": case.agent_urgency if case else None,
                 "complexity": case.complexity if case else 2,
                 "required_tier": case.required_tier if case else 2,
                 "confidence": case.confidence if case else "high",
@@ -493,6 +494,7 @@ def get_patient_details(patient_id: str, role: str = Query("receptionist")):
             resp["case"]["clinical_panel"] = {
                 "complaint_quote": case.complaint_quote,
                 "key_details": case.key_details,
+                "medical_history": case.medical_history.model_dump() if case.medical_history else None,
                 "possible_issues": case.possible_issues,
                 "not_ruled_out": case.not_ruled_out,
                 "likely_procedures": case.likely_procedures,

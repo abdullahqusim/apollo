@@ -19,6 +19,14 @@ export const formatDate = (date: string, style: "long" | "short" = "short") => {
   );
 };
 
+/** A date of birth is YYYY-MM-DD, or the caller's words if they couldn't be read as a date. */
+export const formatBirthDate = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return new Date(`${value}T12:00:00Z`).toLocaleDateString("en-GB", {
+    day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
+  });
+};
+
 /** Moves to the next or previous weekday. */
 export const shiftWeekday = (date: string, direction: 1 | -1) => {
   const value = new Date(`${date}T12:00:00Z`);
@@ -46,6 +54,7 @@ export const WORKLIST_TYPES: Record<string, string> = {
   borderline_complexity: "Tutor review",
   symptoms_unclear: "Unclear symptoms",
   low_confidence: "Unclear symptoms",
+  urgency_disagreement: "Urgency disagreement",
   asked_for_person: "Asked for a person",
   identity_unconfirmed: "Identity unconfirmed",
   no_backfill_candidate: "No standby match",

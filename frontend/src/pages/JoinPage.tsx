@@ -4,6 +4,8 @@ import type { Availability } from "../types";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
+const items = (text: string) => text.split(",").map((item) => item.trim()).filter(Boolean);
+
 const emptyWeek = (): Availability =>
   Object.fromEntries(DAYS.map((day) => [day.toLowerCase(), { am: false, pm: false }]));
 
@@ -11,7 +13,12 @@ const emptyWeek = (): Availability =>
 export function JoinPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [problem, setProblem] = useState("");
+  const [conditions, setConditions] = useState("");
+  const [allergies, setAllergies] = useState("");
+  const [medications, setMedications] = useState("");
+  const [ratherNotSay, setRatherNotSay] = useState(false);
   const [week, setWeek] = useState<Availability>(emptyWeek);
   const [shortNotice, setShortNotice] = useState(false);
   const [earlier, setEarlier] = useState(false);
@@ -37,6 +44,13 @@ export function JoinPage() {
         name: name.trim(),
         phone: phone.trim(),
         problem: problem.trim(),
+        date_of_birth: birthDate,
+        medical_history: {
+          conditions: ratherNotSay ? [] : items(conditions),
+          allergies: ratherNotSay ? [] : items(allergies),
+          medications: ratherNotSay ? [] : items(medications),
+          declined: ratherNotSay,
+        },
         availability: week,
         short_notice_ok: shortNotice,
         wants_earlier: earlier,
@@ -61,6 +75,10 @@ export function JoinPage() {
             <input className="p-field" required autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <label className="q">
+            <span>Date of birth</span>
+            <input className="p-field" required type="date" autoComplete="bday" max={new Date().toISOString().slice(0, 10)} value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+          </label>
+          <label className="q">
             <span>Mobile number<small>We will text you about your appointment.</small></span>
             <input className="p-field" required type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
           </label>
@@ -68,6 +86,25 @@ export function JoinPage() {
             <span>What's the problem?<small>Tell us in your own words.</small></span>
             <textarea className="p-field" required value={problem} onChange={(e) => setProblem(e.target.value)} />
           </label>
+          <fieldset>
+            <legend>Your medical history</legend>
+            <label className="q">
+              <span>Known conditions<small>Separate each one with a comma. Leave blank if none.</small></span>
+              <input className="p-field" disabled={ratherNotSay} value={conditions} onChange={(e) => setConditions(e.target.value)} />
+            </label>
+            <label className="q">
+              <span>Allergies</span>
+              <input className="p-field" disabled={ratherNotSay} value={allergies} onChange={(e) => setAllergies(e.target.value)} />
+            </label>
+            <label className="q">
+              <span>Regular medications</span>
+              <input className="p-field" disabled={ratherNotSay} value={medications} onChange={(e) => setMedications(e.target.value)} />
+            </label>
+            <label className="choice">
+              <input type="checkbox" checked={ratherNotSay} onChange={(e) => setRatherNotSay(e.target.checked)} />
+              I'd rather not say
+            </label>
+          </fieldset>
           <fieldset>
             <legend>When can you come in?</legend>
             <table className="av">

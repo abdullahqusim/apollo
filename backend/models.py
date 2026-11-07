@@ -52,10 +52,19 @@ class Availability(BaseModel):
     confirmed_at: str = Field(default_factory=utc_now_iso)
 
 
+class MedicalHistory(BaseModel):
+    """Clinical view only. Empty lists mean nothing was reported; a case with no history was never asked."""
+    conditions: List[str]
+    allergies: List[str]
+    medications: List[str]
+    declined: bool  # The patient said they would rather not say.
+
+
 class Patient(BaseModel):
     id: str = Field(default_factory=lambda: make_id("pat"))
     name: str
     phone: str
+    date_of_birth: Optional[str] = None  # YYYY-MM-DD, or the caller's words if they can't be read as a date
     contact_token: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     availability: Availability = Field(default_factory=Availability)
     short_notice_ok: bool = True  # Standby pool opt-in
@@ -81,6 +90,8 @@ class Case(BaseModel):
         "history_flags": [],
     })
     urgency: Urgency = "routine"
+    agent_urgency: Optional[Urgency] = None  # What the voice agent decided, kept to compare with triage
+    medical_history: Optional[MedicalHistory] = None
     complexity: Complexity = 2
     confidence: Confidence = "high"
     # Clinical panel (visible only to clinical view: tutors and dentists)
@@ -212,6 +223,7 @@ class NeedsAttentionItem(BaseModel):
         "no_match",
         "match_declined",
         "low_confidence",
+        "urgency_disagreement",
         "other",
     ]
     summary: str

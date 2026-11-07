@@ -5,8 +5,8 @@ from typing import Dict, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from intake_parsing import full_week
-from models import Patient
+from intake_parsing import full_week, parse_dob
+from models import MedicalHistory, Patient
 from pipeline import ACTIVE_BOOKING, IntakeData, _active_booking, _active_offer, expire_offers, handle_reply, process_intake
 from state import STATE
 
@@ -17,6 +17,8 @@ class RegisterRequest(BaseModel):
     name: str = Field(min_length=1)
     phone: str = Field(min_length=1)
     problem: str = Field(min_length=1)
+    date_of_birth: Optional[str] = None
+    medical_history: Optional[MedicalHistory] = None
     availability: Dict[str, Dict[str, bool]] = Field(default_factory=full_week)
     short_notice_ok: bool = False
     wants_earlier: bool = False
@@ -33,6 +35,8 @@ async def register(req: RegisterRequest):
         availability=req.availability,
         short_notice_ok=req.short_notice_ok,
         wants_earlier=req.wants_earlier,
+        date_of_birth=parse_dob(req.date_of_birth or ""),
+        medical_history=req.medical_history,
     ))
     return {**result, "redirect_url": f"/p/{result['token']}"}
 

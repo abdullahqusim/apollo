@@ -13,11 +13,12 @@ from pydantic import BaseModel
 
 from state import STATE
 from intake_parsing import (
-    answer_to, availability_words, caller_name, parse_availability, patient_words, transcript_text,
+    answer_to, availability_words, caller_dob, caller_name, parse_availability, parse_dob, patient_words,
+    transcript_text,
 )
-from models import CallRecord, NeedsAttentionItem, utc_now_iso
+from models import CallRecord, MedicalHistory, NeedsAttentionItem, utc_now_iso
 from pipeline import IntakeData, process_intake
-from triage import has_red_flag
+from triage import agent_urgency_from, has_red_flag
 from tools_api import router as tools_router
 from patient_api import router as patient_router
 from console_api import router as console_router
@@ -58,6 +59,21 @@ class CallEndedWebhook(BaseModel):
     availability_text: Optional[str] = None
     short_notice_ok: Optional[bool] = None
     wants_earlier: Optional[bool] = None
+    caller_dob: Optional[str] = None
+    conditions: Optional[List[str]] = None
+    allergies: Optional[List[str]] = None
+    medications: Optional[List[str]] = None
+    history_declined: Optional[bool] = None
+    agent_urgency: Optional[str] = None
+
+    def medical_history(self) -> Optional[MedicalHistory]:
+        fields = (self.conditions, self.allergies, self.medications, self.history_declined)
+        if all(field is None for field in fields):
+            return None
+        return MedicalHistory(
+            conditions=self.conditions or [], allergies=self.allergies or [], medications=self.medications or [],
+            declined=bool(self.history_declined),
+        )
 
 
 OUTCOMES = ("intake_completed", "booked", "cancelled", "rescheduled", "emergency_redirected", "escalated", "abandoned")
@@ -74,6 +90,8 @@ async def call_ended_webhook(payload: CallEndedWebhook):
     # Calls that already booked through the voice tools have nothing left to process.
     needs_intake = payload.outcome in ("intake_completed", "emergency_redirected") and not payload.patient_id
     name = payload.caller_name or caller_name(payload.transcript)
+    sent_to_emergency = payload.outcome == "emergency_redirected"
+    agent_urgency = "emergency" if sent_to_emergency else agent_urgency_from(payload.agent_urgency)
     if needs_intake and words and name and payload.caller_phone:
         availability = payload.availability_text or availability_words(payload.transcript)
         short_notice = payload.short_notice_ok
@@ -91,6 +109,9 @@ async def call_ended_webhook(payload: CallEndedWebhook):
             availability=parse_availability(availability),
             short_notice_ok=bool(short_notice),
             wants_earlier=bool(earlier),
+            date_of_birth=parse_dob(payload.caller_dob or "") or caller_dob(payload.transcript),
+            medical_history=payload.medical_history(),
+            agent_urgency=agent_urgency,
         ))
     elif needs_intake:
         result = {"outcome": "incomplete"}
@@ -109,7 +130,7 @@ async def call_ended_webhook(payload: CallEndedWebhook):
         )
         STATE.calls[record.id] = record
         if result["outcome"] == "incomplete":
-            emergency = has_red_flag(words)
+            emergency = sent_to_emergency or has_red_flag(words)
             item = NeedsAttentionItem(
                 reason="red_flag" if emergency else "identity_unconfirmed",
                 summary=(f"Possible emergency, no contact details: {words[:120]}" if emergency

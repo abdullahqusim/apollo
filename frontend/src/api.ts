@@ -1,5 +1,5 @@
 import type {
-  AuditEvent, Availability, Call, Candidate, ClinicianData, PatientRecordData, PhoneEntry,
+  AuditEvent, Availability, Call, Candidate, ClinicianData, MedicalHistory, PatientRecordData, PhoneEntry,
   ReleasedSlot, Role, Shortlist, ThreadData, TodayData, WaitingCase, WorklistItem,
 } from "./types";
 
@@ -49,8 +49,8 @@ export const api = {
   sendCall: (payload: unknown) => post<IntakeResult>("/webhooks/call-ended", payload),
 
   register: (data: {
-    name: string; phone: string; problem: string; availability: Availability;
-    short_notice_ok: boolean; wants_earlier: boolean;
+    name: string; phone: string; problem: string; date_of_birth: string; medical_history: MedicalHistory;
+    availability: Availability; short_notice_ok: boolean; wants_earlier: boolean;
   }) => post<IntakeResult>("/api/patient/register", data),
   getThread: (token: string) => request<ThreadData>(`/api/patient/${token}`),
   reply: (token: string, text: string) => post(`/api/patient/${token}/reply`, { text }),

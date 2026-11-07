@@ -172,10 +172,18 @@ export interface Shortlist {
   }[];
 }
 
+export interface MedicalHistory {
+  conditions: string[];
+  allergies: string[];
+  medications: string[];
+  declined: boolean;
+}
+
 export interface PatientRecordData {
   patient: {
     name: string;
     phone: string;
+    date_of_birth?: string | null;
     status: string;
     contact_token: string;
     flags: string[];
@@ -188,12 +196,14 @@ export interface PatientRecordData {
     id: string;
     summary_plain: string;
     urgency: string;
+    agent_urgency?: string | null;
     complexity: number;
     confidence: string;
     status: string;
     channel: "phone" | "online";
     clinical_panel?: {
       complaint_quote: string;
+      medical_history?: MedicalHistory | null;
       possible_issues: string[];
       not_ruled_out: string[];
       likely_procedures: string[];

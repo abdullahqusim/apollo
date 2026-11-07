@@ -9,13 +9,14 @@ from pydantic import BaseModel
 
 from state import STATE
 from models import slot_when
+from intake_parsing import parse_dob
 from models import (
-    Patient, Case, Slot, Booking, Offer, NeedsAttentionItem,
+    MedicalHistory, Patient, Case, Slot, Booking, Offer, NeedsAttentionItem,
     CallRecord, utc_now_iso, make_id
 )
 from models import case_minutes
 from pipeline import find_match
-from triage import triage, get_anthropic_client, has_red_flag
+from triage import agent_urgency_from, triage, get_anthropic_client, has_red_flag
 
 router = APIRouter(prefix="/api/tools", tags=["Voice Agent Tools"])
 
@@ -70,6 +71,7 @@ def lookup_patient(req: LookupPatientRequest):
 class CreateIntakeRequest(BaseModel):
     name: str
     phone: str
+    dob: Optional[str] = None
     availability_text: Optional[str] = None
     transcript_so_far: Optional[str] = None
     short_notice_ok: Optional[bool] = True
@@ -94,6 +96,7 @@ def create_intake(req: CreateIntakeRequest):
                 status="waitlist"
             )
             STATE.patients[patient.id] = patient
+        patient.date_of_birth = parse_dob(req.dob or "") or patient.date_of_birth
 
         # Create intake Case
         case = Case(
@@ -123,13 +126,16 @@ class SubmitTriageRequest(BaseModel):
     complaint_quote: str
     key_details: Optional[Dict[str, Any]] = None
     red_flags: Optional[List[str]] = None
+    medical_history: Optional[MedicalHistory] = None
+    agent_urgency: Optional[str] = None
 
 
 @router.post("/submit_triage")
 async def submit_triage(req: SubmitTriageRequest):
     # Run triage logic
     client = get_anthropic_client()
-    triage_res = await triage(client, req.complaint_quote, req.complaint_quote)
+    agent_urgency = agent_urgency_from(req.agent_urgency)
+    triage_res = await triage(client, req.complaint_quote, req.complaint_quote, agent_urgency)
 
     with STATE._lock:
         case = STATE.cases.get(req.case_id)
@@ -137,6 +143,10 @@ async def submit_triage(req: SubmitTriageRequest):
             raise HTTPException(status_code=404, detail="Case not found")
 
         case.complaint_quote = req.complaint_quote
+        case.agent_urgency = agent_urgency
+        case.medical_history = req.medical_history or (
+            triage_res.assessment.medical_history if triage_res.assessment else None
+        )
         if req.key_details:
             case.key_details = req.key_details
 
@@ -177,6 +187,8 @@ async def submit_triage(req: SubmitTriageRequest):
             case.not_ruled_out = triage_res.assessment.not_ruled_out
             case.likely_procedures = triage_res.assessment.likely_procedures
             case.required_tier = triage_res.assessment.complexity
+        elif agent_urgency:
+            case.urgency = agent_urgency
 
         if triage_res.next_step == "review":
             case.status = "awaiting_tutor"
@@ -190,6 +202,15 @@ async def submit_triage(req: SubmitTriageRequest):
             STATE.needs_attention[att.id] = att
         else:
             case.status = "accepted"
+            if triage_res.disagreement:
+                att = NeedsAttentionItem(
+                    patient_id=case.patient_id,
+                    case_id=case.id,
+                    reason="urgency_disagreement",
+                    summary=f"{triage_res.disagreement} Using {case.urgency}.",
+                    suggested_action="Tutor to confirm the urgency.",
+                )
+                STATE.needs_attention[att.id] = att
 
         STATE._log_event_locked(
             actor="Automated line",

@@ -701,40 +701,16 @@ def generate_seed_data() -> Tuple[
         short_notice_ok=True, wants_earlier=True, status="standby", case_status="accepted", created_days_ago=4
     )
     p_sb5, c_sb5 = add_patient_and_case(
-        "pat-sb5", "Grace Montgomery", "07700 900205", "tok-grace",
-        "Chipped buccal cusp on lower right molar, standby for restorative session",
-        "Broke a corner off my filling. Can arrive anytime if a chair frees up.",
-        "routine", 2, "high",
-        ["Defective restoration", "Carious lesion"], [], ["Composite restoration"],
-        short_notice_ok=True, wants_earlier=True, status="standby", case_status="accepted", created_days_ago=3
-    )
-    p_sb6, c_sb6 = add_patient_and_case(
-        "pat-sb6", "Euan Sinclair", "07700 900206", "tok-euan",
+        "pat-sb5", "Euan Sinclair", "07700 900206", "tok-euan",
         "Firm mobile lower incisor with severe localized bone loss",
         "Front tooth is loose and tender when biting toast. Ready to come in today.",
         "soon", 2, "high",
         ["Localized severe periodontitis", "Tooth mobility class III"], [], ["Simple extraction"],
         short_notice_ok=True, wants_earlier=True, status="standby", case_status="accepted", created_days_ago=2
     )
-    p_sb7, c_sb7 = add_patient_and_case(
-        "pat-sb7", "Kirsty Hamilton", "07700 900207", "tok-kirsty",
-        "Aesthetic composite filling replacement on upper lateral incisor",
-        "Old white filling on my front tooth has turned brown and rough.",
-        "routine", 2, "high",
-        ["Stained composite restoration", "Marginal ditching"], [], ["Composite restoration"],
-        short_notice_ok=True, wants_earlier=True, flags=["anxious"], status="standby", case_status="accepted", created_days_ago=5
-    )
-    p_sb8, c_sb8 = add_patient_and_case(
-        "pat-sb8", "Angus Macdonald", "07700 900208", "tok-angus",
-        "Loose lower partial cobalt-chrome denture clasp",
-        "Metal clip on my partial plate is loose. Can attend at short notice.",
-        "routine", 3, "high",
-        ["Deformed clasp assembly", "Partial denture instability"], [], ["Removable dentures"],
-        short_notice_ok=True, wants_earlier=True, status="standby", case_status="accepted", created_days_ago=6
-    )
 
     # =========================================================================
-    # EXTENSIVE WAITLIST PATIENTS (Across stages, tiers, and conditions)
+    # WAITLIST PATIENTS (Across stages, tiers, and conditions)
     # =========================================================================
     waitlist_specs = [
         ("pat-wl01", "Alistair Boyd", "07700 900401", "tok-wl01", "Failing MOD amalgam restoration on lower right molar", "Old silver filling is crumbling and food collects between teeth.", "routine", 2, "high", ["Recurrent caries", "Defective amalgam"], [], ["Composite restoration"], ["access_needs"], 9),
@@ -743,25 +719,10 @@ def generate_seed_data() -> Tuple[
         ("pat-wl04", "Lorna Robertson", "07700 900404", "tok-wl04", "Partially erupted lower left wisdom tooth with recurrent pericoronal soreness", "Gum flap over my back tooth gets inflamed every few weeks.", "soon", 3, "medium", ["Pericoronitis", "Impacted third molar"], ["Deep fascial infection"], ["Surgical extraction"], [], 4),
         ("pat-wl05", "Hamish Murray", "07700 900405", "tok-wl05", "Discoloured non-vital upper central incisor following sports trauma 2 years ago", "Front tooth has turned grey. Dentist said the nerve died after a rugby tackle.", "routine", 3, "high", ["Pulpal necrosis", "Tooth discolouration"], [], ["Endodontics - anterior", "Composite restoration"], [], 7),
         ("pat-wl06", "Mhairi Cameron", "07700 900406", "tok-wl06", "Debonded lingual orthodontic retainer wire scratching tongue", "The wire behind my bottom front teeth popped off and is poking my tongue.", "urgent", 2, "high", ["Debonded orthodontic retainer", "Mucosal irritation"], [], ["Composite restoration"], [], 1),
-        ("pat-wl07", "Stuart Kerr", "07700 900407", "tok-wl07", "Xerostomia dry mouth sensation with generalized plaque", "My mouth feels constantly dry due to medication and I need a checkup.", "routine", 1, "high", ["Drug-induced xerostomia", "Plaque accumulation"], [], ["Scale & polish", "Preventive advice"], [], 5),
-        ("pat-wl08", "Alison Thomson", "07700 900408", "tok-wl08", "Deep occlusal pit decay on upper premolar detected on routine screening", "Dentist spotted a deep cavity during a screening session.", "routine", 2, "high", ["Dental caries occlusal", "Dentin caries"], [], ["Composite restoration"], [], 6),
-        ("pat-wl09", "Blair Paterson", "07700 900409", "tok-wl09", "Mild painless clicking in right temporomandibular joint on opening", "My jaw clicks when I open wide to yawn. No pain at all.", "routine", 2, "low", ["Temporomandibular joint internal derangement"], [], ["Clinical assessment by tutor"], [], 4),
-        ("pat-wl10", "Gillian Vance", "07700 900410", "tok-wl10", "Cervical dentin hypersensitivity at gingival margin of lower canines", "Brushing the necks of my teeth feels very sensitive.", "routine", 1, "high", ["Dentin hypersensitivity", "Gingival recession"], [], ["Preventive advice", "Fissure sealant"], [], 10),
-        ("pat-wl11", "Keith McInnes", "07700 900411", "tok-wl11", "Unrestored palatal cusp fracture on upper first molar", "Lost a piece of tooth chewing a crusty roll. Edge is sharp.", "soon", 2, "high", ["Fractured cusp", "Exposed dentin"], [], ["Composite restoration"], [], 2),
-        ("pat-wl12", "Shona Macrae", "07700 900412", "tok-wl12", "Upper acrylic denture dropping when talking or laughing", "Dentures have become very loose over the past six months.", "routine", 3, "high", ["Alveolar ridge resorption", "Loss of denture retention"], [], ["Removable dentures"], [], 12),
-        ("pat-wl13", "Neil Armstrong", "07700 900413", "tok-wl13", "Subgingival calculus bridge behind lower anterior incisors", "Haven't had a dental clean in three years, lots of hard tartar.", "routine", 1, "high", ["Severe calculus accumulation", "Gingivitis"], [], ["Scale & polish"], [], 8),
-        ("pat-wl14", "Morven Clark", "07700 900414", "tok-wl14", "Spontaneous throbbing pain in upper left first molar keeping patient awake", "Severe aching tooth pain at 3 AM that needed painkillers.", "urgent", 3, "high", ["Acute irreversible pulpitis"], ["Acute apical abscess"], ["Endodontics - anterior", "Composite restoration"], [], 1),
-        ("pat-wl15", "Duncan Gillespie", "07700 900415", "tok-wl15", "Extreme dental anxiety, hasn't visited a dental surgery in 6 years", "Terrified of dental drills and needles. Need a gentle checkup.", "routine", 1, "high", ["Dental phobia", "Calculus accumulation"], [], ["Scale & polish", "Preventive advice"], ["anxious"], 14),
-        ("pat-wl16", "Lesley Cunningham", "07700 900416", "tok-wl16", "Subgingival fracture on heavily restored root-treated premolar", "My root-treated tooth split down the side. Wondering if it can be saved.", "soon", 3, "medium", ["Vertical root fracture risk", "Defective coronal seal"], ["Non-restorable fracture"], ["Surgical extraction", "Composite restoration"], [], 3),
-        ("pat-wl17", "Malcolm Scott", "07700 900417", "tok-wl17", "Extrinsic chlorhexidine and nicotine staining on anterior teeth", "Lots of dark brown stains on the front teeth.", "routine", 1, "high", ["Extrinsic dental staining"], [], ["Scale & polish"], [], 7),
-        ("pat-wl18", "Iona Sutherland", "07700 900418", "tok-wl18", "Palatally impacted upper canine requiring surgical exposure assessment", "Orthodontist referred me to check if my impacted canine can be brought down.", "routine", 4, "high", ["Impacted maxillary canine"], [], ["Surgical extraction", "Complex periodontal surgery"], [], 11),
-        ("pat-wl19", "Ross Macfarlane", "07700 900419", "tok-wl19", "Sharp fractured composite edge causing traumatic ulcer on lateral tongue", "Filling chipped and the rough spot is rubbing my tongue raw.", "routine", 2, "high", ["Traumatic lingual ulcer", "Fractured restoration"], [], ["Composite restoration"], [], 5),
-        ("pat-wl20", "Aileen Baird", "07700 900420", "tok-wl20", "Margin gap and cement wash-out under full gold crown on upper second molar", "Old gold crown feels loose and food catches underneath.", "routine", 3, "high", ["Recurrent marginal caries", "Decemented crown"], [], ["Crown & bridge", "Composite restoration"], [], 9),
-        ("pat-wl21", "Kenneth Ross", "07700 900421", "tok-wl21", "Post-stroke patient requiring wheelchair hoist / wide bay access for exam", "Wheelchair user following stroke. Needs wide chair transfer space.", "routine", 2, "high", ["Post-stroke oral care", "Gingival recession"], [], ["Scale & polish", "Composite restoration"], ["wheelchair", "access_needs"], 13),
-        ("pat-wl22", "Heather Maclean", "07700 900422", "tok-wl22", "Annual volunteer clinic recall checkup and bite-wing review", "Volunteer patient here for my annual checkup and cleaning.", "routine", 1, "high", ["Routine dental checkup"], [], ["Scale & polish"], [], 6),
-        ("pat-wl23", "Alan Fleming", "07700 900423", "tok-wl23", "Interproximal cavity between upper canine and first premolar", "Floss catches and tears between my top teeth.", "routine", 2, "high", ["Interproximal carious lesion"], [], ["Composite restoration"], [], 4),
-        ("pat-wl24", "Christine Drummond", "07700 900424", "tok-wl24", "Porcelain fused to metal crown debonded cleanly while eating toffee", "My front crown fell off in one piece. I have it with me in a box.", "urgent", 2, "high", ["Decemented crown", "Exposed dentin core"], [], ["Composite restoration", "Crown & bridge"], [], 1),
-        ("pat-wl25", "Fraser Macleod", "07700 900425", "tok-wl25", "Bilateral buccal abfraction notches with thermal sensitivity", "Notches at the gumline on my premolars feel cold and sore.", "routine", 2, "high", ["Abfraction lesions", "Cervical sensitivity"], [], ["Composite restoration"], [], 5),
+        ("pat-wl07", "Shona Macrae", "07700 900412", "tok-wl12", "Upper acrylic denture dropping when talking or laughing", "Dentures have become very loose over the past six months.", "routine", 3, "high", ["Alveolar ridge resorption", "Loss of denture retention"], [], ["Removable dentures"], [], 12),
+        ("pat-wl08", "Morven Clark", "07700 900414", "tok-wl14", "Spontaneous throbbing pain in upper left first molar keeping patient awake", "Severe aching tooth pain at 3 AM that needed painkillers.", "urgent", 3, "high", ["Acute irreversible pulpitis"], ["Acute apical abscess"], ["Endodontics - anterior", "Composite restoration"], [], 1),
+        ("pat-wl09", "Duncan Gillespie", "07700 900415", "tok-wl15", "Extreme dental anxiety, hasn't visited a dental surgery in 6 years", "Terrified of dental drills and needles. Need a gentle checkup.", "routine", 1, "high", ["Dental phobia", "Calculus accumulation"], [], ["Scale & polish", "Preventive advice"], ["anxious"], 14),
+        ("pat-wl10", "Iona Sutherland", "07700 900418", "tok-wl18", "Palatally impacted upper canine requiring surgical exposure assessment", "Orthodontist referred me to check if my impacted canine can be brought down.", "routine", 4, "high", ["Impacted maxillary canine"], [], ["Surgical extraction", "Complex periodontal surgery"], [], 11),
     ]
 
     for pid, name, phone, token, summary, quote, urg, comp, conf, issues, nro, procs, flags, days_ago in waitlist_specs:
@@ -1074,7 +1035,7 @@ def generate_seed_data() -> Tuple[
         "Complex periodontal surgery": "Gum surgery",
         "Complex restorative": "Bridge work",
     }
-    fill_by_day = [0.85, 0.6, 0.4, 0.25, 0.15]
+    fill_by_day = [0.25, 0.30, 0.22, 0.14, 0.08]
     clinic_days = sorted({s.date for s in sessions})[:len(fill_by_day)]
     tier_of = {c.id: c for c in clinicians}
     number = 0
@@ -1083,12 +1044,12 @@ def generate_seed_data() -> Tuple[
             clinician = tier_of[session.clinician_id]
             pool = [p for p in clinician.competencies if p in visit_notes] or senior_work
             while True:
-                gap = rng.choice([0, 0, 0, 15, 15, 30, 45])
+                gap = rng.choice([15, 15, 30, 30, 45, 60])
                 procedure = rng.choice(pool)
                 if session_cursor.get(session.id, to_minutes(session.start)) + gap + case_minutes([procedure]) > to_minutes(session.end):
                     break
                 if rng.random() > fill:
-                    session_cursor[session.id] = session_cursor.get(session.id, to_minutes(session.start)) + 30
+                    session_cursor[session.id] = session_cursor.get(session.id, to_minutes(session.start)) + 45
                     continue
                 number += 1
                 name = names.pop()

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { CALL_OUTCOMES, formatDate, formatTime, sentence } from "../format";
+import { CALL_OUTCOMES, formatBirthDate, formatDate, formatTime, sentence } from "../format";
 import type { PatientRecordData, Role } from "../types";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+const listed = (items: string[], declined: boolean) =>
+  items.join(", ") || (declined ? "Would rather not say" : "None reported");
 
 export function PatientRecord({ patientId, role, panelRight, onClose, onChanged, onOpenPhone, onLoaded }: {
   patientId: string;
@@ -56,6 +59,7 @@ export function PatientRecord({ patientId, role, panelRight, onClose, onChanged,
   }, [token, onLoaded]);
 
   const panel = record?.case?.clinical_panel;
+  const history = panel?.medical_history;
   const grid = record?.patient.availability.grid;
   const appointment = record?.appointment;
 
@@ -71,6 +75,7 @@ export function PatientRecord({ patientId, role, panelRight, onClose, onChanged,
         <div className="scroll">
           <dl className="facts">
             <dt>Phone</dt><dd>{record.patient.phone}</dd>
+            {record.patient.date_of_birth && <><dt>Date of birth</dt><dd>{formatBirthDate(record.patient.date_of_birth)}</dd></>}
             {record.case && <><dt>Came in by</dt><dd>{record.case.channel === "online" ? "Online form" : "Phone call"}</dd></>}
             <dt>Short notice</dt><dd>{record.patient.short_notice_ok ? "Yes, on standby" : "No"}</dd>
             {record.patient.flags.length > 0 && <><dt>Flags</dt><dd>{sentence(record.patient.flags.join(", "))}</dd></>}
@@ -94,6 +99,9 @@ export function PatientRecord({ patientId, role, panelRight, onClose, onChanged,
               <dl className="facts">
                 <dt>Summary</dt><dd>{record.case.summary_plain}</dd>
                 <dt>Urgency</dt><dd>{sentence(record.case.urgency)}</dd>
+                {record.case.agent_urgency && record.case.agent_urgency !== record.case.urgency && (
+                  <><dt>Line said</dt><dd>{sentence(record.case.agent_urgency)}</dd></>
+                )}
                 <dt>Complexity</dt><dd>{record.case.complexity}</dd>
                 <dt>Confidence</dt><dd>{sentence(record.case.confidence)}</dd>
               </dl>
@@ -102,6 +110,14 @@ export function PatientRecord({ patientId, role, panelRight, onClose, onChanged,
 
           {panel && (
             <>
+              <p className="section-title">Medical history</p>
+              {history ? (
+                <dl className="facts">
+                  <dt>Conditions</dt><dd>{listed(history.conditions, history.declined)}</dd>
+                  <dt>Allergies</dt><dd>{listed(history.allergies, history.declined)}</dd>
+                  <dt>Medications</dt><dd>{listed(history.medications, history.declined)}</dd>
+                </dl>
+              ) : <p className="panel-body muted">Not asked</p>}
               <p className="section-title">Possible issues for clinical review</p>
               <p className="panel-body">“{panel.complaint_quote}”</p>
               <dl className="facts">
