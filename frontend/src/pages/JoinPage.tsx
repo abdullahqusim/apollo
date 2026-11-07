@@ -87,9 +87,9 @@ export function JoinPage() {
             <textarea className="p-field" required value={problem} onChange={(e) => setProblem(e.target.value)} />
           </label>
           <fieldset>
-            <legend>Your medical history</legend>
+            <legend>Your medical history<small>Optional. Only clinical staff can see these answers.</small></legend>
             <label className="q">
-              <span>Known conditions<small>Separate each one with a comma. Leave blank if none.</small></span>
+              <span>Known conditions<small>Separate each one with a comma. Leave blank if you have none.</small></span>
               <input className="p-field" disabled={ratherNotSay} value={conditions} onChange={(e) => setConditions(e.target.value)} />
             </label>
             <label className="q">

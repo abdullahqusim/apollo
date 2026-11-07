@@ -77,6 +77,12 @@ Some examples include:
 
 # Tools
 
-After you have all needed information and are about to end the call, call the send_triage_request tool once. Put the call transcript in the transcript field.
+After you have all needed information and are about to end the call, call the send_triage_request tool once.
 
-Never call the tool before the urgency level is decided, and never call it more than once per call.
+- transcript: The whole call, one line per turn, starting each line with "Agent:" or "Patient:".
+- caller_phone: The number the patient gave. If they said the number they called on is okay, use {{system__caller_id}}.
+- call_id: {{system__conversation_id}}.
+
+If you sent the patient to 999, still call the tool once with what you have before the call ends, even if some details are missing, so the clinic can follow up.
+
+Otherwise, never call the tool before the urgency level is decided. Never call it more than once per call.

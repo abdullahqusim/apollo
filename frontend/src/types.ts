@@ -79,7 +79,7 @@ export interface Candidate {
   days_waiting: number;
 }
 
-export interface WorklistItem {
+export interface FlagItem {
   id: string;
   reason: string;
   summary: string;
@@ -87,7 +87,7 @@ export interface WorklistItem {
   status: string;
   created_at: string;
   patient?: { id: string; name: string } | null;
-  slot?: { id: string; date: string } | null;
+  case?: { status: string } | null;
 }
 
 export interface Call {
@@ -211,7 +211,13 @@ export interface PatientRecordData {
     };
   } | null;
   appointment?: Appointment | null;
-  call_history: { id: string; summary: string; outcome: string; started_at: string }[];
+  call_history: {
+    id: string;
+    summary: string;
+    outcome: string;
+    started_at: string;
+    transcript: { speaker: string; text: string }[];
+  }[];
 }
 
 export interface ThreadData {

@@ -67,7 +67,18 @@ Two separate scores, never merged into one number.
 | 5 | Qualified dentist |
 (Thresholds per procedure live in a config table; this is the default.)
 
-**Confidence** (high / medium / low) on the triage. Low confidence = "symptoms unclear" -> Needs attention, no auto-match.
+**Confidence** (high / medium / low) on the triage. Low means too little to tell what the problem is.
+
+**Auto-match by default.** A person only checks a case that is low confidence (too little information) or urgent with
+complexity 4+ (too severe). Accepting matches it as normal. Denying closes it and texts the patient. Everything else,
+including medium confidence, is matched straight away and the patient answers YES or NO by text.
+
+**Returning callers.** A second call is triaged again. Urgency only ever goes up: getting worse raises the case and adds
+a flag, and any existing appointment stays put until a person moves it. An emergency cancels their appointment, withdraws
+any offer and releases the chair.
+
+**Denied symptoms.** "No trouble breathing" is not a red flag. Only wording right beside the symptom counts as a denial,
+so "No, I can't breathe" stays an emergency.
 
 **Clinical panel** (clinical view only):
 - complaint in patient's own words (quoted)
@@ -207,7 +218,7 @@ Add `caller_phone` so we can text the patient. Optional: `caller_name`, `caller_
 Repeat `call_id`s are ignored.
 
 Urgency: the agent and triage both rate the call, and the more urgent rating is used. A disagreement stays on the
-case and adds a Worklist item, but does not hold up matching. `emergency_redirected` always counts as an emergency,
+case and in the audit log, but does not hold up matching. `emergency_redirected` always counts as an emergency,
 even if triage disagrees, so a caller told to dial 999 is never booked.
 
 Outbound (if supported): `POST /calls/outbound {patient_id, purpose: "offer", slot_ids[]}` -> agent offers
@@ -226,15 +237,16 @@ Tabs:
    procedure, so days have uneven blocks and gaps. Selecting an appointment opens its details below and switches the
    patient phone to that patient. A released chair shows who it was offered to, their replies and time left. Selecting
    a free gap suggests waiting patients who fit it.
-2. **Worklist** (human-in-the-loop queue): red flags, asked for a person, identity unconfirmed, symptoms unclear,
-   borderline complexity (tutor), no standby match, offers exhausted. Each item: summary, next step, approve or
-   dismiss. Overnight calls sit underneath, newest first, with the transcript on row click.
-3. **Waiting list**: stages enquiry -> intake done -> awaiting tutor -> accepted -> scheduled -> in treatment ->
+2. **Flags** (human-in-the-loop queue): emergencies, too severe, too little information, got worse, asked for a person,
+   identity unconfirmed, no slot for an urgent case, no reply to an urgent offer, offers turned down. Too severe and too little information are accepted or
+   denied. The rest are marked done. Unfilled chairs stay in Schedule. Any row opens the patient record.
+3. **Calls**: every call, newest first. A row opens the patient record. Callers with no record show the transcript.
+4. **Waiting list**: stages enquiry -> intake done -> awaiting tutor -> accepted -> scheduled -> in treatment ->
    discharged. Sorted urgency then days waiting. Columns: urgency, complexity, grade, flags, availability source.
-4. **Clinicians**: row per clinician: grade, supervisor, load, free in next 48h, logbook outstanding, status. Click a
+5. **Clinicians**: row per clinician: grade, supervisor, load, free in next 48h, logbook outstanding, status. Click a
    row for logbook detail and the 14-day schedule. Above the table: available today, average load, students behind.
 
-Patient record: details, plain summary, availability, bookings, calls. Clinical panel only for clinical roles.
+Patient record: details, plain summary, availability, bookings, calls with transcripts. Clinical panel only for clinical roles.
 Audit log (Tools menu): every action with actor and reason.
 
 Manual assignment: "Assign" opens eligible clinicians, ranked, with load shown and the first marked as recommended.
@@ -251,12 +263,7 @@ Choosing anyone else needs a reason (patient request, continuity, clinician requ
 
 ## 12. Simulation ("replay a week")
 
-Seeded synthetic week: random cancellations, DNAs, new cases. Live metrics:
-- chair utilisation
-- average wait by urgency class
-- urgent window breaches
-- **reschedules per patient** (churn; target: none moved more than once)
-- triage agreement with clinician (from synthetic assessments)
+Not built. The first version showed fixed numbers, so it was removed rather than presented as results.
 
 ## 13. Guardrails summary
 
@@ -274,7 +281,6 @@ Seeded synthetic week: random cancellations, DNAs, new cases. Live metrics:
 3. Clinicians screen: show load and logbook gaps behind a match.
 4. Judges scan QR, join standby. Cancel an appointment on stage. Offers land on judges' phones; first to accept
    wins; board refills.
-5. Run the week simulation: show the metrics.
 
 ## 15. Build split
 
@@ -282,7 +288,7 @@ Seeded synthetic week: random cancellations, DNAs, new cases. Live metrics:
 - **Backend + engine + console + patient pages (Alqavi):** sections 3-8, 10-12.
 
 MVP cut if short on time: triage + Needs attention + Today + cascade + patient pages. Drop the nightly CP-SAT batch
-(greedy only), the Clinicians expand view, and the simulation last.
+(greedy only) and the Clinicians expand view last.
 
 ## 16. Stack
 

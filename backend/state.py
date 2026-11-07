@@ -273,32 +273,23 @@ class StateManager:
                     outcome = f"All {total} standby patients declined {when} with {clinician.name}."
                 else:
                     outcome = f"None of the {total} standby patients took {when} with {clinician.name}."
-                # Max 3 offers reached -> Escalate to receptionist
-                att_id = make_id("att")
-                att = NeedsAttentionItem(
-                    id=att_id,
-                    slot_id=slot_id,
-                    reason="offers_exhausted",
-                    summary=outcome,
-                    suggested_action="Open the chair in Schedule and choose a suggested patient.",
-                )
-                self.needs_attention[att.id] = att
+                # Max 3 offers reached. Schedule shows the chair and suggests patients.
                 self.active_cascades[slot_id] = {
                     "slot_id": slot_id,
                     "started_at": utc_now_iso(),
                     "mode": "exhausted",
                     "offers": [o.id for o in existing_offers_for_slot],
                     "status": "exhausted",
-                    "reason": "Offer limit reached",
+                    "reason": outcome,
                 }
                 self._log_event_locked(
                     actor="System",
                     evt_type="offers_exhausted",
                     entity="slot",
                     payload={"slot_id": slot_id},
-                    reason="Offer limit of 3 reached. Added to the worklist.",
+                    reason="Offer limit of 3 reached. The chair stays flagged in Schedule.",
                 )
-                return {"status": "exhausted", "message": "Offer limit reached, added to the worklist"}
+                return {"status": "exhausted", "message": "Offer limit reached, the chair stays flagged in Schedule"}
 
             # Filter eligible candidates
             candidates: List[Tuple[Patient, Case, int]] = []
@@ -340,14 +331,7 @@ class StateManager:
                 candidates.append((pat, case, gap))
 
             if not candidates:
-                # No backfill candidate
-                att = NeedsAttentionItem(
-                    slot_id=slot_id,
-                    reason="no_backfill_candidate",
-                    summary=f"No standby patient matches the released chair in {slot.bay} ({slot.date} {slot.session}).",
-                    suggested_action="Check the waiting list or keep the chair for walk-ins.",
-                )
-                self.needs_attention[att.id] = att
+                # No backfill candidate. Schedule shows the chair and suggests patients.
                 self.active_cascades[slot_id] = {
                     "slot_id": slot_id,
                     "started_at": utc_now_iso(),

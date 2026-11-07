@@ -37,7 +37,8 @@ const SCENARIOS: Scenario[] = [
   { id: "routine", label: "Lost filling, routine", name: "Rory Sinclair", born: "The 3rd of March 1985.", history: "I've got asthma, I'm allergic to penicillin and I take ibuprofen.", problem: "I lost a filling last week and cold drinks hurt.", availability: "I can't do Mondays. Tuesday and Thursday mornings are best.", shortNotice: "Yes, that's fine." },
   { id: "urgent", label: "Broken tooth, urgent", name: "Isla Grant", born: "12/07/1999", history: "No, none of those.", problem: "I broke my front tooth in a fall and it's bleeding a little.", availability: "Any day is fine.", shortNotice: "Yes." },
   { id: "disagree", label: "Line rates it higher than triage", name: "Morag Kerr", born: "The 21st of June 1941.", history: "I'd rather not say.", problem: "My old filling is sensitive to cold.", availability: "Any day is fine.", shortNotice: "Yes.", agentUrgency: "urgent" },
-  { id: "unclear", label: "Unclear symptoms", name: "Ewan Reid", born: "2nd of November 1970.", history: "I take ramipril.", problem: "Something just feels a bit odd on one side sometimes.", availability: "Afternoons are better.", shortNotice: "No, not really." },
+  { id: "unclear", label: "Too little information, flagged", name: "Ewan Reid", born: "2nd of November 1970.", history: "I take ramipril.", problem: "Something just feels a bit odd on one side sometimes.", availability: "Afternoons are better.", shortNotice: "No, not really." },
+  { id: "severe", label: "Abscess, flagged as too severe", name: "Calum Ross", born: "14/02/1978", history: "No.", problem: "I think I have an abscess and it's getting worse.", availability: "Any day is fine.", shortNotice: "Yes." },
   { id: "emergency", label: "Emergency", name: "Niamh Duff", born: "9th of September 2001.", history: "No.", problem: "My face has swollen up and the swelling is spreading down my neck.", availability: "Any time.", shortNotice: "Yes." },
 ];
 

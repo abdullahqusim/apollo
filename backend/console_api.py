@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from state import STATE
 from models import slot_when
 from models import appointment_id, case_minutes, slot_minutes, to_clock, to_minutes
-from pipeline import rank_clinicians, _active_offer, _release_hold, candidates_for_slot, case_approved, expire_offers, offer_slot, run_batch
+from pipeline import rank_clinicians, _active_offer, _release_hold, candidates_for_slot, case_approved, case_denied, expire_offers, offer_slot, run_batch
 from models import (
     Patient, Case, Slot, Booking, Offer, Clinician,
     NeedsAttentionItem, Event, CallRecord, utc_now_iso, make_id
@@ -228,6 +228,7 @@ def get_needs_attention():
                     "id": case.id,
                     "urgency": case.urgency,
                     "complexity": case.complexity,
+                    "status": case.status,
                     "summary_plain": case.summary_plain,
                     "complaint_quote": case.complaint_quote,
                     "likely_procedures": case.likely_procedures,
@@ -259,16 +260,19 @@ def resolve_attention(req: ResolveAttentionRequest):
         item.status = "resolved" if req.action == "resolve" else "dismissed"
         item.resolution_notes = req.notes
         case = STATE.cases.get(item.case_id) if item.case_id else None
-        if req.action == "resolve" and case and case.status in ("awaiting_tutor", "intake_done"):
-            case.status = "accepted"
-            case_approved(case)
+        if case and case.status in ("awaiting_tutor", "intake_done"):
+            if req.action == "resolve":
+                case.status = "accepted"
+                case_approved(case)
+            else:
+                case_denied(case)
 
         STATE._log_event_locked(
             actor="Receptionist",
             evt_type="needs_attention_resolved",
             entity="ticket",
             payload={"item_id": item.id, "reason": item.reason, "action": req.action},
-            reason=f"Worklist item closed: {req.notes}"
+            reason=f"Flag closed: {req.notes}"
         )
 
     STATE.save_snapshot()
@@ -449,7 +453,9 @@ def get_patient_details(patient_id: str, role: str = Query("receptionist")):
         case = pat_cases[-1] if pat_cases else None
 
         # Call history
-        calls = [c for c in STATE.calls.values() if c.patient_id == pat.id]
+        calls = sorted(
+            (c for c in STATE.calls.values() if c.patient_id == pat.id), key=lambda c: c.started_at, reverse=True,
+        )
 
         # Bookings
         bookings = []
@@ -608,6 +614,10 @@ def assign_slot_manual(req: AssignSlotRequest):
                 body=f"Booked: {slot_when(slot)} with {cln.name if cln else 'the clinical team'}, {slot.bay}. Reply CANCEL if you can't make it.",
             )
         case.status = "scheduled"
+        for item in STATE.needs_attention.values():
+            if item.case_id == case.id and item.status == "open":
+                item.status = "resolved"
+                item.resolution_notes = "Booked by reception"
 
         STATE._log_event_locked(
             actor="Receptionist",
@@ -652,7 +662,7 @@ def review_triage(req: ReviewTriageRequest):
             case.status = "accepted"
             case_approved(case)
         elif req.decision == "reject":
-            case.status = "discharged"
+            case_denied(case)
 
         # Resolve any associated needs attention item
         for att in STATE.needs_attention.values():
@@ -679,40 +689,6 @@ def get_activity_log(limit: int = 50):
         evts = list(STATE.events)
         evts.sort(key=lambda e: e.at, reverse=True)
         return {"events": [e.model_dump() for e in evts[:limit]]}
-
-
-# 11. Simulation ("Replay a Week")
-@router.post("/simulate_week")
-def simulate_week():
-    """Runs a simulated synthetic week with realistic cancellations, DNAs, refills and computes live metrics."""
-    with STATE._lock:
-        total_slots = len(STATE.slots)
-        booked_slots = len([b for b in STATE.bookings.values() if b.state in ("confirmed", "locked", "attended")])
-
-        # Synthetically simulate a few events for demonstration
-        # 1. Elena Rostova fills a cancelled slot
-        # 2. Compute live metrics
-        metrics = {
-            "chair_utilisation": f"{round(min(94.2, (booked_slots / max(1, total_slots) * 100) + 12))}%",
-            "average_wait_urgent": "18 hours",
-            "average_wait_soon": "4.2 days",
-            "average_wait_routine": "11 days",
-            "urgent_window_breaches": 0,
-            "reschedules_per_patient": 0.08,  # Target: max 1
-            "triage_agreement_rate": "92.4%",  # Agreement with synthetic clinical assessments
-            "cancellations_recovered_rate": "87.5%",
-        }
-
-        STATE._log_event_locked(
-            actor="System",
-            evt_type="simulation_run",
-            entity="system",
-            payload=metrics,
-            reason="Replayed a synthetic week (10 sessions)."
-        )
-
-    STATE.save_snapshot()
-    return {"ok": True, "metrics": metrics}
 
 
 # 12. Reset Demo

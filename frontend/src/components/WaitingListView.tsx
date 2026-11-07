@@ -13,7 +13,7 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "unmatched", label: "Waiting for a match" },
   { id: "offered", label: "Offered, awaiting reply" },
   { id: "booked", label: "Booked" },
-  { id: "review", label: "Tutor review" },
+  { id: "review", label: "Flagged" },
   { id: "closed", label: "Closed" },
 ];
 
@@ -32,7 +32,7 @@ function Status({ item }: { item: WaitingCase }) {
       : <span className="tag green">Booked {when}</span>;
   }
   const stage = stageOf(item);
-  if (stage === "review") return <span className="tag amber">Tutor review</span>;
+  if (stage === "review") return <span className="tag amber">Flagged</span>;
   if (stage === "unmatched") return <span className="tag">Waiting for a match</span>;
   if (item.status === "emergency_redirected") return <span className="tag red">Sent to A&amp;E</span>;
   return <span className="tag">{sentence(item.status)}</span>;
@@ -104,7 +104,7 @@ export function WaitingListView({ cases, role, onOpenPatient, onAssign, onChange
                 const notes = [c.channel === "online" ? "Online" : "Phone", ...(c.short_notice_ok ? ["Short notice"] : []), ...c.flags];
                 const bookable = ["unmatched", "review"].includes(stageOf(c));
                 return (
-                  <tr key={c.case_id}>
+                  <tr key={c.case_id} className="clickable" onClick={() => onOpenPatient(c.patient_id)}>
                     <td className="nowrap">
                       <button className="link" onClick={() => onOpenPatient(c.patient_id)}>{c.patient_name}</button>
                       <div className="muted small">{sentence(notes.join(", "))}</div>
@@ -115,7 +115,7 @@ export function WaitingListView({ cases, role, onOpenPatient, onAssign, onChange
                     <td className="nowrap">{GRADES[c.required_tier]}</td>
                     <td className="num">{c.days_waiting}</td>
                     <td><Status item={c} /></td>
-                    <td className="actions">
+                    <td className="actions" onClick={(e) => e.stopPropagation()}>
                       {bookable && <button className="btn small" onClick={() => onAssign(c.case_id)}>Book</button>}
                     </td>
                   </tr>

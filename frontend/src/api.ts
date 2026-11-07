@@ -1,6 +1,6 @@
 import type {
-  AuditEvent, Availability, Call, Candidate, ClinicianData, MedicalHistory, PatientRecordData, PhoneEntry,
-  ReleasedSlot, Role, Shortlist, ThreadData, TodayData, WaitingCase, WorklistItem,
+  AuditEvent, Availability, Call, Candidate, ClinicianData, FlagItem, MedicalHistory, PatientRecordData, PhoneEntry,
+  ReleasedSlot, Role, Shortlist, ThreadData, TodayData, WaitingCase,
 } from "./types";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -24,7 +24,7 @@ export interface IntakeResult {
 export const api = {
   getDay: (date: string | null) => request<TodayData>(`/api/console/today${date ? `?date=${date}` : ""}`),
   getCalls: () => request<{ calls: Call[] }>("/api/console/overnight"),
-  getWorklist: () => request<{ items: WorklistItem[] }>("/api/console/needs_attention"),
+  getFlags: () => request<{ items: FlagItem[] }>("/api/console/needs_attention"),
   getReleased: () => request<{ released: ReleasedSlot[] }>("/api/console/released_slots"),
   getWaitingList: () => request<{ cases: WaitingCase[] }>("/api/console/waitlist"),
   getClinicians: () => request<ClinicianData>("/api/console/clinicians"),
@@ -41,10 +41,9 @@ export const api = {
     post("/api/console/assign", data),
   reviewTriage: (data: { case_id: string; decision: string; notes?: string }) =>
     post("/api/console/review_triage", data),
-  closeWorklistItem: (item_id: string, action: "resolve" | "dismiss", notes: string) =>
+  closeFlag: (item_id: string, action: "resolve" | "dismiss", notes: string) =>
     post("/api/console/resolve_attention", { item_id, action, notes }),
   cancelBooking: (booking_id: string) => post("/api/console/cancel_booking", { booking_id }),
-  replayWeek: () => post<{ metrics: Record<string, string | number> }>("/api/console/simulate_week"),
   resetDemo: () => post("/api/console/reset_demo"),
   sendCall: (payload: unknown) => post<IntakeResult>("/webhooks/call-ended", payload),
 

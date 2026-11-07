@@ -8,6 +8,13 @@ export const formatDateTime = (iso: string) =>
     day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: zone,
   });
 
+/** Calls span several days, so the time alone would read out of order. */
+export const formatCallTime = (iso: string) => {
+  const value = new Date(iso);
+  const day = value.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: zone });
+  return `${day}, ${formatTime(iso)}`;
+};
+
 /** Takes a date-only string such as 2026-11-09. */
 export const formatDate = (date: string, style: "long" | "short" = "short") => {
   const value = new Date(`${date}T12:00:00Z`);
@@ -41,7 +48,13 @@ export const sentence = (value: string) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
-export const minutesLeft = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 60000));
+/** How long is left, in the largest unit that reads naturally: 25 minutes, 4 hours. */
+export const timeLeft = (iso: string) => {
+  const minutes = Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 60000));
+  if (minutes <= 90) return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+};
 
 export const refillOutcome = (refill: { status: string; declined: number; sent: number }) => {
   if (refill.status === "no_candidate") return "No standby match";
@@ -49,12 +62,14 @@ export const refillOutcome = (refill: { status: string; declined: number; sent: 
   return `${refill.sent} offered, none took it`;
 };
 
-export const WORKLIST_TYPES: Record<string, string> = {
+export const FLAG_TYPES: Record<string, string> = {
   red_flag: "Emergency",
+  too_severe: "Too severe",
+  got_worse: "Got worse",
+  no_reply: "No reply",
   borderline_complexity: "Tutor review",
-  symptoms_unclear: "Unclear symptoms",
-  low_confidence: "Unclear symptoms",
-  urgency_disagreement: "Urgency disagreement",
+  symptoms_unclear: "Too little information",
+  low_confidence: "Too little information",
   asked_for_person: "Asked for a person",
   identity_unconfirmed: "Identity unconfirmed",
   no_backfill_candidate: "No standby match",
@@ -86,8 +101,7 @@ export const EVENT_LABELS: Record<string, string> = {
   offers_sent: "Standby offers sent",
   offers_exhausted: "Standby offers ran out",
   parallel_offer_claimed: "Standby offer accepted",
-  needs_attention_resolved: "Worklist item closed",
-  simulation_run: "Week replayed",
+  needs_attention_resolved: "Flag closed",
   match_offered: "Appointment offered",
   match_accepted: "Appointment accepted",
   match_declined: "Appointment declined",
@@ -101,8 +115,8 @@ export const urgencyTone = (urgency?: string) =>
 export const OUTCOME_TEXT: Record<string, string> = {
   offered: "Triaged and matched. An appointment offer has been texted.",
   waiting: "Triaged. No slot fits yet, so the patient is on the waiting list.",
-  review: "Sent to the Worklist for a tutor to check.",
+  review: "Flagged for someone to check before it is matched.",
   emergency: "Emergency. The patient was told to go to A&E and nothing was booked.",
   updated: "Already on the list. Availability updated.",
-  incomplete: "The call had no name or phone number. Added to the Worklist.",
+  incomplete: "The call had no name or phone number. Added to Flags.",
 };

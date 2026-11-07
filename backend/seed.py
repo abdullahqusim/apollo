@@ -32,6 +32,8 @@ def generate_seed_data() -> Tuple[
     List[ClinicSession],
 ]:
     base_dt = datetime.strptime(BASE_DATE_STR, "%Y-%m-%d")
+    # Recent activity follows the real clock, so a new call always lands on top of it.
+    recent = datetime.now(timezone.utc).replace(tzinfo=None)
 
     # 1. Clinicians (14 clinicians across all 5 tiers)
     clinicians = [
@@ -538,12 +540,12 @@ def generate_seed_data() -> Tuple[
         status="waitlist", case_status="accepted", created_days_ago=0
     )
 
-    # Borderline Tutor Review Case
+    # Urgent case that needs senior care, so a person checks it first
     p_tutor, c_tutor = add_patient_and_case(
         "pat-tutor", "Gemma Collins", "07700 900302", "tok-gemma",
         "Deep subgingival decay on lower second molar adjacent to inferior alveolar nerve on radiograph history",
         "I have a deep hole in my wisdom tooth area. My dentist told me it was tricky and close to the nerve.",
-        "soon", 3, "medium",
+        "urgent", 4, "high",
         ["Deep carious lesion", "Pulpal involvement"],
         ["Surgical extraction requirement"],
         ["Surgical extraction", "Composite restoration"],
@@ -554,10 +556,10 @@ def generate_seed_data() -> Tuple[
             id="att-001",
             patient_id=p_tutor.id,
             case_id=c_tutor.id,
-            reason="borderline_complexity",
-            summary="Deep decay near inferior alveolar nerve. Complexity is borderline between Year 5 and Postgraduate.",
-            suggested_action="Tutor to approve for Year 5 or refer to Dr. Clark.",
-            created_at=(base_dt - timedelta(hours=4)).isoformat() + "Z",
+            reason="too_severe",
+            summary="Deep decay near the nerve. Urgent and needs a postgraduate or dentist.",
+            suggested_action="Check a senior clinician can see them, then accept or deny.",
+            created_at=(recent - timedelta(hours=4)).isoformat() + "Z",
         )
     )
 
@@ -580,7 +582,7 @@ def generate_seed_data() -> Tuple[
             reason="red_flag",
             summary="Spreading neck swelling and difficulty swallowing. Caller was told to go to A&E.",
             suggested_action="Call the patient to check they went to A&E.",
-            created_at=(base_dt - timedelta(hours=2)).isoformat() + "Z",
+            created_at=(recent - timedelta(hours=2)).isoformat() + "Z",
         )
     )
 
@@ -601,9 +603,9 @@ def generate_seed_data() -> Tuple[
             patient_id=p_unclear.id,
             case_id=c_unclear.id,
             reason="symptoms_unclear",
-            summary="Non-specific chin tingling with no pain or swelling. Triage confidence is low.",
+            summary="Non-specific chin tingling with no pain or swelling.",
             suggested_action="Call back to clarify symptoms, or book a short assessment.",
-            created_at=(base_dt - timedelta(hours=5)).isoformat() + "Z",
+            created_at=(recent - timedelta(hours=5)).isoformat() + "Z",
         )
     )
 
@@ -732,7 +734,7 @@ def generate_seed_data() -> Tuple[
             wants_earlier=True,
             flags=flags,
             status="waitlist",
-            case_status="accepted" if comp != 3 or urg != "soon" else "awaiting_tutor",
+            case_status="accepted",
             created_days_ago=days_ago,
         )
 
@@ -753,7 +755,7 @@ def generate_seed_data() -> Tuple[
             reason="red_flag",
             summary="Uncontrolled bleeding after an extraction. Caller was told to go to A&E.",
             suggested_action="Call the patient to check they went to A&E.",
-            created_at=(base_dt - timedelta(hours=3, minutes=15)).isoformat() + "Z",
+            created_at=(recent - timedelta(hours=3, minutes=15)).isoformat() + "Z",
         )
     )
 
@@ -771,9 +773,9 @@ def generate_seed_data() -> Tuple[
             patient_id=p_emg3.id,
             case_id=c_emg3.id,
             reason="red_flag",
-            summary="Facial injury with a suspected jaw fracture. Caller was told to go to A&E.",
+            summary="Facial injury after a cycling fall. Caller was told to go to A&E.",
             suggested_action="Call the patient to check they went to A&E.",
-            created_at=(base_dt - timedelta(hours=1, minutes=30)).isoformat() + "Z",
+            created_at=(recent - timedelta(hours=1, minutes=30)).isoformat() + "Z",
         )
     )
 
@@ -793,7 +795,7 @@ def generate_seed_data() -> Tuple[
             reason="asked_for_person",
             summary="Caller asked to speak to a person.",
             suggested_action="Call back to complete the booking.",
-            created_at=(base_dt - timedelta(hours=6)).isoformat() + "Z",
+            created_at=(recent - timedelta(hours=6)).isoformat() + "Z",
         )
     )
 
@@ -811,9 +813,9 @@ def generate_seed_data() -> Tuple[
             patient_id=p_att_low.id,
             case_id=c_att_low.id,
             reason="low_confidence",
-            summary="Symptoms do not point to a dental cause. Triage confidence is low.",
+            summary="Symptoms do not point to a dental cause.",
             suggested_action="Book a short assessment with a tutor.",
-            created_at=(base_dt - timedelta(hours=7)).isoformat() + "Z",
+            created_at=(recent - timedelta(hours=7)).isoformat() + "Z",
         )
     )
 
@@ -832,8 +834,8 @@ def generate_seed_data() -> Tuple[
                 {"speaker": "agent", "text": "Please seek immediate emergency medical care. Go straight to A&E or call 999. We cannot treat this at the volunteer student clinic.", "t": 14.5},
             ],
             summary="Neck swelling and difficulty swallowing. Told to go to A&E.",
-            started_at=(base_dt - timedelta(hours=5, minutes=12)).isoformat() + "Z",
-            ended_at=(base_dt - timedelta(hours=5, minutes=10)).isoformat() + "Z",
+            started_at=(recent - timedelta(hours=5, minutes=12)).isoformat() + "Z",
+            ended_at=(recent - timedelta(hours=5, minutes=10)).isoformat() + "Z",
         ),
         CallRecord(
             id="call-002",
@@ -848,8 +850,8 @@ def generate_seed_data() -> Tuple[
                 {"speaker": "agent", "text": "Thank you. We have recorded your intake as urgent. You will receive an appointment offer within 30 minutes.", "t": 25.0},
             ],
             summary="Fractured front tooth with bleeding. Needs seeing within 48 hours.",
-            started_at=(base_dt - timedelta(hours=3, minutes=45)).isoformat() + "Z",
-            ended_at=(base_dt - timedelta(hours=3, minutes=41)).isoformat() + "Z",
+            started_at=(recent - timedelta(hours=3, minutes=45)).isoformat() + "Z",
+            ended_at=(recent - timedelta(hours=3, minutes=41)).isoformat() + "Z",
         ),
         CallRecord(
             id="call-003",
@@ -859,11 +861,11 @@ def generate_seed_data() -> Tuple[
             transcript=[
                 {"speaker": "agent", "text": "You're through to Apollo. How can we help today?", "t": 1.5},
                 {"speaker": "patient", "text": "I have deep decay at the back of my mouth. Dentist said it was tricky and close to the nerve.", "t": 8.0},
-                {"speaker": "agent", "text": "Recorded. We have queued your details for tutor review.", "t": 16.0},
+                {"speaker": "agent", "text": "Thank you. A clinician will check your details first, then we will text you.", "t": 16.0},
             ],
-            summary="Deep decay at the back of the mouth. Waiting for tutor review.",
-            started_at=(base_dt - timedelta(hours=4, minutes=10)).isoformat() + "Z",
-            ended_at=(base_dt - timedelta(hours=4, minutes=7)).isoformat() + "Z",
+            summary="Deep decay at the back of the mouth. Flagged for review.",
+            started_at=(recent - timedelta(hours=4, minutes=10)).isoformat() + "Z",
+            ended_at=(recent - timedelta(hours=4, minutes=7)).isoformat() + "Z",
         ),
         CallRecord(
             id="call-004",
@@ -877,8 +879,8 @@ def generate_seed_data() -> Tuple[
                 {"speaker": "patient", "text": "No, neither.", "t": 12.0},
             ],
             summary="Occasional chin tingling, no pain or swelling. Symptoms unclear.",
-            started_at=(base_dt - timedelta(hours=6, minutes=20)).isoformat() + "Z",
-            ended_at=(base_dt - timedelta(hours=6, minutes=17)).isoformat() + "Z",
+            started_at=(recent - timedelta(hours=6, minutes=20)).isoformat() + "Z",
+            ended_at=(recent - timedelta(hours=6, minutes=17)).isoformat() + "Z",
         ),
         CallRecord(
             id="call-005",
@@ -888,11 +890,11 @@ def generate_seed_data() -> Tuple[
             transcript=[
                 {"speaker": "agent", "text": "You're through to Apollo. How can we help today?", "t": 1.0},
                 {"speaker": "patient", "text": "I had a tooth pulled this afternoon and it won't stop bleeding. Mouth is full of blood clots.", "t": 6.5},
-                {"speaker": "agent", "text": "Bite firmly on a clean folded cloth and go straight to A&E.", "t": 14.0},
+                {"speaker": "agent", "text": "This sounds like it could be an emergency. Please go straight to A&E now.", "t": 14.0},
             ],
             summary="Heavy bleeding after an extraction. Told to go to A&E.",
-            started_at=(base_dt - timedelta(hours=3, minutes=16)).isoformat() + "Z",
-            ended_at=(base_dt - timedelta(hours=3, minutes=14)).isoformat() + "Z",
+            started_at=(recent - timedelta(hours=3, minutes=16)).isoformat() + "Z",
+            ended_at=(recent - timedelta(hours=3, minutes=14)).isoformat() + "Z",
         ),
         CallRecord(
             id="call-006",
@@ -902,11 +904,11 @@ def generate_seed_data() -> Tuple[
             transcript=[
                 {"speaker": "agent", "text": "You're through to Apollo. How can we help today?", "t": 1.0},
                 {"speaker": "patient", "text": "I came off my road bike and hit my jaw hard on the road. My bite feels crooked and lip is completely numb.", "t": 7.0},
-                {"speaker": "agent", "text": "That indicates a possible jaw fracture. Please attend the nearest Emergency Department immediately for maxillofacial assessment.", "t": 15.0},
+                {"speaker": "agent", "text": "This sounds like it could be an emergency. Please go to A&E now.", "t": 15.0},
             ],
-            summary="Suspected jaw fracture after a cycling fall. Told to go to A&E.",
-            started_at=(base_dt - timedelta(hours=1, minutes=32)).isoformat() + "Z",
-            ended_at=(base_dt - timedelta(hours=1, minutes=29)).isoformat() + "Z",
+            summary="Facial injury after a cycling fall. Told to go to A&E.",
+            started_at=(recent - timedelta(hours=1, minutes=32)).isoformat() + "Z",
+            ended_at=(recent - timedelta(hours=1, minutes=29)).isoformat() + "Z",
         ),
         CallRecord(
             id="call-007",
@@ -919,8 +921,8 @@ def generate_seed_data() -> Tuple[
                 {"speaker": "agent", "text": "I understand. I am escalating your request directly to our reception staff queue for a prompt callback.", "t": 12.0},
             ],
             summary="Caller asked to speak to a person. Passed to reception.",
-            started_at=(base_dt - timedelta(hours=6, minutes=5)).isoformat() + "Z",
-            ended_at=(base_dt - timedelta(hours=6, minutes=3)).isoformat() + "Z",
+            started_at=(recent - timedelta(hours=6, minutes=5)).isoformat() + "Z",
+            ended_at=(recent - timedelta(hours=6, minutes=3)).isoformat() + "Z",
         ),
         CallRecord(
             id="call-008",
@@ -933,8 +935,8 @@ def generate_seed_data() -> Tuple[
                 {"speaker": "agent", "text": "Thank you Elena. You are now on our standby list.", "t": 15.0},
             ],
             summary="Added to the standby list.",
-            started_at=(base_dt - timedelta(days=4, hours=2)).isoformat() + "Z",
-            ended_at=(base_dt - timedelta(days=4, hours=1, minutes=57)).isoformat() + "Z",
+            started_at=(recent - timedelta(days=4, hours=2)).isoformat() + "Z",
+            ended_at=(recent - timedelta(days=4, hours=1, minutes=57)).isoformat() + "Z",
         ),
     ])
 
@@ -944,7 +946,7 @@ def generate_seed_data() -> Tuple[
     events.extend([
         Event(
             id="evt-001",
-            at=(base_dt - timedelta(hours=5, minutes=10)).isoformat() + "Z",
+            at=(recent - timedelta(hours=5, minutes=10)).isoformat() + "Z",
             actor="Automated line",
             type="emergency_redirected",
             entity="patient",
@@ -953,7 +955,7 @@ def generate_seed_data() -> Tuple[
         ),
         Event(
             id="evt-002",
-            at=(base_dt - timedelta(hours=3, minutes=41)).isoformat() + "Z",
+            at=(recent - timedelta(hours=3, minutes=41)).isoformat() + "Z",
             actor="Automated line",
             type="intake_created",
             entity="case",
@@ -962,7 +964,7 @@ def generate_seed_data() -> Tuple[
         ),
         Event(
             id="evt-003",
-            at=(base_dt - timedelta(days=3)).isoformat() + "Z",
+            at=(recent - timedelta(days=3)).isoformat() + "Z",
             actor="System",
             type="booking_confirmed",
             entity="booking",
@@ -971,7 +973,7 @@ def generate_seed_data() -> Tuple[
         ),
         Event(
             id="evt-004",
-            at=(base_dt - timedelta(days=2)).isoformat() + "Z",
+            at=(recent - timedelta(days=2)).isoformat() + "Z",
             actor="System",
             type="booking_confirmed",
             entity="booking",
@@ -980,7 +982,7 @@ def generate_seed_data() -> Tuple[
         ),
         Event(
             id="evt-005",
-            at=(base_dt - timedelta(hours=3, minutes=14)).isoformat() + "Z",
+            at=(recent - timedelta(hours=3, minutes=14)).isoformat() + "Z",
             actor="Automated line",
             type="emergency_redirected",
             entity="patient",
@@ -989,21 +991,21 @@ def generate_seed_data() -> Tuple[
         ),
         Event(
             id="evt-006",
-            at=(base_dt - timedelta(hours=1, minutes=29)).isoformat() + "Z",
+            at=(recent - timedelta(hours=1, minutes=29)).isoformat() + "Z",
             actor="Automated line",
             type="emergency_redirected",
             entity="patient",
             payload={"patient_id": p_emg3.id, "red_flag": "facial trauma / numbness"},
-            reason="Suspected jaw fracture. Patient told to attend A&E.",
+            reason="Facial injury after a cycling fall. Patient told to attend A&E.",
         ),
         Event(
             id="evt-007",
-            at=(base_dt - timedelta(days=1)).isoformat() + "Z",
+            at=(recent - timedelta(days=1)).isoformat() + "Z",
             actor="Dr. Alistair MacIntyre",
             type="triage_reviewed",
             entity="case",
             payload={"case_id": c_tutor.id, "decision": "under_review"},
-            reason="Tutor reviewing a borderline case.",
+            reason="Reviewing a flagged case.",
         ),
     ])
 
