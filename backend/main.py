@@ -17,6 +17,7 @@ from intake_parsing import (
 )
 from models import CallRecord, NeedsAttentionItem, utc_now_iso
 from pipeline import IntakeData, process_intake
+from triage import has_red_flag
 from tools_api import router as tools_router
 from patient_api import router as patient_router
 from console_api import router as console_router
@@ -108,10 +109,12 @@ async def call_ended_webhook(payload: CallEndedWebhook):
         )
         STATE.calls[record.id] = record
         if result["outcome"] == "incomplete":
+            emergency = has_red_flag(words)
             item = NeedsAttentionItem(
-                reason="identity_unconfirmed",
-                summary="A call ended without a name or phone number.",
-                suggested_action="Read the transcript in Overnight calls and call back if possible.",
+                reason="red_flag" if emergency else "identity_unconfirmed",
+                summary=(f"Possible emergency, no contact details: {words[:120]}" if emergency
+                         else "A call ended without a name or phone number."),
+                suggested_action="Read the transcript in Calls and call back if possible.",
             )
             STATE.needs_attention[item.id] = item
         STATE._log_event_locked(

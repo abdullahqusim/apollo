@@ -67,7 +67,9 @@ backend/
   console_api.py  Console endpoints
   main.py         FastAPI app, serves the built frontend
 frontend/src/
-  pages/          Console, join, patient
-  components/     Views and dialogs
+  pages/          Console, join
+  components/     Views, dialogs, phone simulator
+api/              Express service for the voice side (skeleton)
+agent.md          Voice agent script
 run.py            Entry point
 ```

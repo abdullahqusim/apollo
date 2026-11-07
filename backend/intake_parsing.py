@@ -29,28 +29,33 @@ def parse_availability(text: str) -> Dict[str, Dict[str, bool]]:
     all_sessions: Optional[str] = None
 
     for clause in re.split(r"[.;,!?\n]|\bbut\b", text.lower()):
-        days = [_DAY_KEYS[match[:3]] for match in _DAY.findall(clause)]
-        morning = bool(_MORNING.search(clause))
-        afternoon = bool(_AFTERNOON.search(clause))
-        session = "am" if morning and not afternoon else "pm" if afternoon and not morning else None
         negative = bool(_NEGATIVE.search(clause))
+        # "Tuesday mornings or Thursday afternoons" is two preferences in one clause.
+        mixed = _MORNING.search(clause) and _AFTERNOON.search(clause)
+        parts = re.split(r"\b(?:or|and)\b", clause) if mixed else [clause]
 
-        if days and negative:
-            for day in days:
-                if session:
-                    grid[day][session] = False
-                else:
-                    grid[day] = {"am": False, "pm": False}
-        elif days:
-            only_days.extend(days)
-            if session:
+        for part in parts:
+            days = [_DAY_KEYS[match[:3]] for match in _DAY.findall(part)]
+            morning = bool(_MORNING.search(part))
+            afternoon = bool(_AFTERNOON.search(part))
+            session = "am" if morning and not afternoon else "pm" if afternoon and not morning else None
+
+            if days and negative:
                 for day in days:
-                    only_sessions[day] = session
-        elif session:
-            if negative:
-                all_sessions = "pm" if session == "am" else "am"
-            else:
-                all_sessions = session
+                    if session:
+                        grid[day][session] = False
+                    else:
+                        grid[day] = {"am": False, "pm": False}
+            elif days:
+                only_days.extend(days)
+                if session:
+                    for day in days:
+                        only_sessions[day] = session
+            elif session:
+                if negative:
+                    all_sessions = "pm" if session == "am" else "am"
+                else:
+                    all_sessions = session
 
     if only_days:
         for day in DAYS:
